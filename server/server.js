@@ -23,6 +23,9 @@ if (!isMailConfigured()) {
 
 const app = express();
 app.disable('x-powered-by');
+// nginx terminates TLS and proxies over plain HTTP — without this, Express never sees the
+// connection as secure, so the `secure: true` session cookie below silently never gets set.
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(
   cookieSession({
