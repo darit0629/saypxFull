@@ -1,0 +1,18 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Build output
+client/dist/
+
+# Database
+server/*.db
+server/*.db-journal
+server/*.db-wal
+server/*.db-shm
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
