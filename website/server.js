@@ -266,6 +266,16 @@ app.get('/digital-album/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'digital-album.html'));
 });
 
+// The viewer's own JS/CSS get iterated on and re-deployed often, unlike the
+// rest of the static site - the default long browser cache on those two
+// meant a shipped fix could stay invisible to anyone who'd already loaded
+// an album for up to 4 hours. ETag revalidation still keeps repeat loads
+// fast; this only forces a freshness check instead of trusting a stale copy.
+app.use(['/digital-album.js', '/digital-album.css'], (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  next();
+});
+
 // ---- Static site (must come after /admin routes) ----
 app.use(express.static(__dirname));
 
