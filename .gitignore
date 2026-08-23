@@ -10,6 +10,10 @@ server/*.db
 server/*.db-journal
 server/*.db-wal
 server/*.db-shm
+website/albums.db
+website/albums.db-*
+website/albums/
+website/.uploads-tmp/
 
 # IDE / OS
 .vscode/

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SAYPX Admin Login</title>
+<link rel="stylesheet" href="/admin/assets/admin.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>SAYPX Admin</h1>
+      <p class="sub">Manage your portfolio photos & videos</p>
+      <div id="errorBox"></div>
+      <form method="POST" action="/admin/login">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+        <button type="submit" class="btn-primary">Log In</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const err = params.get('error');
+    if (err) {
+      const box = document.getElementById('errorBox');
+      const msg = err === 'locked'
+        ? 'Too many failed attempts. Try again in a few minutes.'
+        : 'Incorrect username or password.';
+      box.innerHTML = '<div class="error-msg">' + msg + '</div>';
+    }
+  </script>
+</body>
+</html>

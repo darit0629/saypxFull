@@ -1,0 +1,21 @@
+{
+  "name": "saypx-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAYPX static site + admin panel server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.0.3",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.0.1",
+    "page-flip": "^2.0.7",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.3"
+  }
+}

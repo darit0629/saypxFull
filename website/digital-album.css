@@ -1,0 +1,280 @@
+:root {
+  --da-bg: #08090C;
+  --da-brand: #FF5722;
+  --da-card: #252830;
+  --da-text: #FFFFFF;
+  --da-muted: #9EA3AF;
+  --da-chrome-bg: rgba(21,23,30,0.8);
+  --da-page-fallback: #111111;
+}
+:root[data-theme="light"] {
+  --da-bg: #F4F4F5;
+  --da-card: #FFFFFF;
+  --da-text: #16181D;
+  --da-muted: #6B7280;
+  --da-chrome-bg: rgba(255,255,255,0.85);
+  --da-page-fallback: #E5E7EB;
+}
+html { transition: background-color 0.3s ease; }
+body { transition: background-color 0.3s ease, color 0.3s ease; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--da-bg);
+  color: var(--da-text);
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* ---- Loading / error ---- */
+.da-loading, .da-error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--da-bg);
+  z-index: 100;
+}
+.da-loading-logo {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.da-loading-text, .da-error-text {
+  color: var(--da-muted);
+  font-size: 14px;
+}
+.da-loading-logo::after { content: ''; }
+.da-loading .da-loading-logo {
+  animation: da-pulse 1.6s ease-in-out infinite;
+}
+@keyframes da-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* ---- Rotate prompt ---- */
+.da-rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--da-bg);
+  text-align: center;
+  padding: 24px;
+}
+.da-rotate-icon { animation: da-rotate-hint 1.8s ease-in-out infinite; color: var(--da-brand); }
+.da-rotate-prompt p { margin: 0; font-size: 16px; font-weight: 600; }
+.da-rotate-sub { font-size: 13px !important; font-weight: 400 !important; color: var(--da-muted); max-width: 280px; }
+@keyframes da-rotate-hint {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+@keyframes da-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- Open hint (overlaid on the closed book's cover page) ---- */
+.da-open-hint-btn {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8%;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.da-open-hint {
+  background: rgba(0,0,0,0.55);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: #fff;
+  animation: da-hint-pulse 2s ease-in-out infinite;
+}
+@keyframes da-hint-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
+.da-cover-title {
+  font-size: 13px;
+  color: var(--da-muted);
+  text-align: center;
+  padding: 6px 0 2px;
+}
+
+/* ---- Viewer ---- */
+.da-viewer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--da-bg);
+}
+.da-book-stage {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+.da-book {
+  position: relative;
+}
+.da-book .page {
+  background: var(--da-page-fallback);
+  overflow: hidden;
+}
+.da-page-image {
+  position: absolute;
+  top: 0; left: 0;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+.da-page-shadow-edge {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 24px;
+  pointer-events: none;
+}
+.da-page-shadow-edge.left { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.28), transparent); }
+.da-page-shadow-edge.right { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.28), transparent); }
+
+/* ---- Book spine (front cover, left edge, closed-book only) ---- */
+.da-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 7%;
+  min-width: 20px;
+  max-width: 34px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10% 0;
+  background:
+    linear-gradient(to right,
+      #1a0606 0%, #4a1212 22%, #7a1f1f 42%, #9c2b2b 50%,
+      #7a1f1f 58%, #4a1212 78%, #1a0606 100%);
+  box-shadow: inset -2px 0 6px rgba(0,0,0,0.5), 2px 0 10px rgba(0,0,0,0.45);
+}
+.da-spine-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(9px, 1.1vw, 13px);
+  letter-spacing: 0.18em;
+  color: #e0b667;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+  white-space: nowrap;
+}
+.da-spine-ornament {
+  color: #c99a4a;
+  font-size: 11px;
+  opacity: 0.85;
+  transform: rotate(90deg);
+}
+.da-spine-right {
+  left: auto;
+  right: 0;
+  box-shadow: inset 2px 0 6px rgba(0,0,0,0.5), -2px 0 10px rgba(0,0,0,0.45);
+}
+
+/* ---- Controls ---- */
+.da-controls {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  z-index: 30;
+}
+.da-controls.da-hidden { opacity: 0; transform: translateY(12px); pointer-events: none; }
+.da-controls-row { display: flex; align-items: center; gap: 8px; }
+.da-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--da-chrome-bg);
+  color: var(--da-text);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.da-btn:active { transform: scale(0.94); }
+.da-btn-sm { width: 34px; height: 34px; }
+.da-page-counter {
+  min-width: 64px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--da-muted);
+  background: var(--da-chrome-bg);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+/* ---- Share sheet ---- */
+.da-share-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+}
+.da-share-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--da-card);
+  border-radius: 16px 16px 0 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.da-share-title { font-size: 13px; color: var(--da-muted); padding: 6px 10px 10px; margin: 0; }
+.da-share-option {
+  text-align: left;
+  padding: 12px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--da-text);
+  font-size: 15px;
+  cursor: pointer;
+}
+.da-share-option:active { background: rgba(255,255,255,0.06); }
+.da-share-cancel { color: var(--da-muted); margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
+
+@media (min-width: 768px) {
+  .da-controls { padding-bottom: 20px; }
+}

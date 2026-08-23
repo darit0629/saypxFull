@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SAYPX Admin</title>
+<link rel="stylesheet" href="/admin/assets/admin.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>SAYPX <span>Admin</span></h1>
+    <form method="POST" action="/admin/logout">
+      <button type="submit" class="btn-secondary">Log Out</button>
+    </form>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Add Photo or Video</h2>
+      <form id="uploadForm">
+        <div class="dropzone" id="dropzone">
+          Click to choose a file, or drag & drop here
+          <div class="fname" id="fileName"></div>
+        </div>
+        <input type="file" id="fileInput" name="file" accept="image/*,video/*" style="display:none">
+
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" required placeholder="e.g. Riya & Sagnik Wedding">
+
+        <label for="subtitle">Subtitle (optional)</label>
+        <input type="text" id="subtitle" name="subtitle" placeholder="e.g. Wedding Photography">
+
+        <label for="category">Category</label>
+        <select id="category" name="category" required></select>
+
+        <div class="new-cat-row" id="newCatRow">
+          <input type="text" id="newCatLabel" placeholder="New category name (e.g. Drone Shots)">
+        </div>
+
+        <button type="submit" class="btn-primary">Upload</button>
+        <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="status-msg" id="statusMsg"></div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Portfolio Items</h2>
+      <div class="toolbar-row">
+        <select id="filterCategory"><option value="">All categories</option></select>
+        <input type="text" id="searchBox" placeholder="Search by title...">
+      </div>
+      <div class="item-grid" id="itemGrid"></div>
+      <div class="empty-state" id="emptyState" style="display:none">No items yet.</div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="editBackdrop">
+    <div class="modal">
+      <h3>Edit Item</h3>
+      <label for="editTitle">Title</label>
+      <input type="text" id="editTitle">
+      <label for="editSubtitle">Subtitle</label>
+      <input type="text" id="editSubtitle">
+      <label for="editCategory">Category</label>
+      <select id="editCategory"></select>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="editCancel">Cancel</button>
+        <button class="btn-primary" id="editSave" style="margin-top:0">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="deleteBackdrop">
+    <div class="modal">
+      <h3>Delete this item?</h3>
+      <p style="color:var(--text-muted); font-size:13px;">This removes it from the site and deletes the file. This can't be undone.</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="deleteCancel">Cancel</button>
+        <button class="btn-primary" id="deleteConfirm" style="margin-top:0; background:var(--danger); color:#fff;">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/assets/admin.js"></script>
+</body>
+</html>
