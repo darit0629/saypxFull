@@ -26,7 +26,8 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const categoryEntries = Object.entries(categories);
   const isBatch = files.length > 1;
@@ -177,23 +178,42 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
           {!isEditing && (
             <div>
               <label className="block text-[10px] text-text-muted mb-1">Photos or Videos</label>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm text-text-muted"
-              >
-                {files.length === 0
-                  ? 'Choose files…'
-                  : files.length === 1
-                    ? files[0].name
-                    : `${files.length} files selected`}
-              </button>
+              {/* Two separate pickers, not one accept="image/*,video/*" input: Android's
+                  native photo picker only offers multi-select when the accept type is a
+                  single category - mixing image and video drops it back to single-select. */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  className="flex-1 rounded-lg border border-border px-3 py-2 text-left text-sm text-text-muted"
+                >
+                  {files.length === 0
+                    ? 'Choose photos…'
+                    : files.length === 1
+                      ? files[0].name
+                      : `${files.length} files selected`}
+                </button>
+                <button
+                  onClick={() => videoInputRef.current?.click()}
+                  className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm text-text-muted"
+                >
+                  + Video
+                </button>
+              </div>
               <input
-                ref={fileInputRef}
+                ref={photoInputRef}
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                onChange={(e) => setFiles((prev) => [...prev, ...Array.from(e.target.files || [])])}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                multiple
+                className="hidden"
+                onChange={(e) => setFiles((prev) => [...prev, ...Array.from(e.target.files || [])])}
               />
               {isBatch && (
                 <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
