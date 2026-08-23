@@ -43,7 +43,6 @@
     panX: 0,
     panY: 0,
     userInteracted: false,
-    controlsHideTimer: null,
     baseW: 700,
     baseH: 990,
   };
@@ -137,7 +136,6 @@
     state.userInteracted = true;
     hide(els.openBookBtn);
     if (state.pageFlip && state.hasCover) state.pageFlip.flipNext();
-    scheduleHideControls();
   });
 
   // ---- Build page DOM + init PageFlip ----
@@ -252,9 +250,6 @@
       updatePageCounter();
       preloadNeighbors(e.data);
       if (e.data > 0) hide(els.openBookBtn);
-      // Briefly reveal the controls so the page counter is visible after
-      // every turn, without going back to showing on every tap/zoom.
-      scheduleHideControls();
     });
 
     setupFlipGestures();
@@ -336,8 +331,8 @@
   }
 
   // ---- Navigation ----
-  els.btnPrev.addEventListener('click', function () { state.pageFlip && state.pageFlip.flipPrev(); wake(); });
-  els.btnNext.addEventListener('click', function () { state.pageFlip && state.pageFlip.flipNext(); wake(); });
+  els.btnPrev.addEventListener('click', function () { state.pageFlip && state.pageFlip.flipPrev(); markInteracted(); });
+  els.btnNext.addEventListener('click', function () { state.pageFlip && state.pageFlip.flipNext(); markInteracted(); });
 
   document.addEventListener('keydown', function (e) {
     if (els.viewerRoot.hidden) return;
@@ -347,7 +342,7 @@
     else if (e.key === '+' || e.key === '=') setZoom(state.zoom + 0.3);
     else if (e.key === '-') setZoom(state.zoom - 0.3);
     else if (e.key === '0') setZoom(1);
-    wake();
+    markInteracted();
   });
 
   // ---- Zoom / pan ----
@@ -360,8 +355,8 @@
     els.bookContainer.style.transform = 'translate(' + state.panX + 'px,' + state.panY + 'px) scale(' + state.zoom + ')';
     els.bookStage.classList.toggle('da-zoomed', state.zoom > 1);
   }
-  els.btnZoomIn.addEventListener('click', function () { setZoom(state.zoom + 0.4); wake(); });
-  els.btnZoomOut.addEventListener('click', function () { setZoom(state.zoom - 0.4); wake(); });
+  els.btnZoomIn.addEventListener('click', function () { setZoom(state.zoom + 0.4); markInteracted(); });
+  els.btnZoomOut.addEventListener('click', function () { setZoom(state.zoom - 0.4); markInteracted(); });
 
   (function setupPan() {
     var dragging = false, lastX = 0, lastY = 0;
@@ -435,14 +430,14 @@
     state.soundOn = !state.soundOn;
     els.soundOnIcon.hidden = !state.soundOn;
     els.soundOffIcon.hidden = state.soundOn;
-    wake();
+    markInteracted();
   });
 
   // ---- Fullscreen ----
   els.btnFullscreen.addEventListener('click', function () {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
-    wake();
+    markInteracted();
   });
 
   // ---- Light / dark theme ----
@@ -466,32 +461,26 @@
   els.btnTheme.addEventListener('click', function () {
     var isLight = document.documentElement.getAttribute('data-theme') === 'light';
     applyTheme(isLight ? 'dark' : 'light');
-    wake();
+    markInteracted();
   });
 
-  // ---- Auto-hide controls ----
-  function scheduleHideControls() {
-    clearTimeout(state.controlsHideTimer);
+  // ---- Controls visibility: fully manual, no auto-show/auto-hide timer.
+  // Hidden by default; only the menu button toggles it, and it stays put
+  // either way until tapped again. ----
+  function showControls() {
     els.controls.classList.remove('da-hidden');
     els.btnToggleControls.classList.add('da-open');
-    state.controlsHideTimer = setTimeout(hideControlsNow, 3200);
   }
-  function hideControlsNow() {
-    clearTimeout(state.controlsHideTimer);
+  function hideControls() {
     els.controls.classList.add('da-hidden');
     els.btnToggleControls.classList.remove('da-open');
   }
-  function wake() { state.userInteracted = true; scheduleHideControls(); }
-  // Deliberately NOT wired to taps on the album itself anymore — that made
-  // the control bar pop up on every single tap (including zoom attempts).
-  // Keyboard use is still a clear "I want to see the controls" signal.
-  els.viewerRoot.addEventListener('keydown', wake, { passive: true, capture: true });
+  function markInteracted() { state.userInteracted = true; }
 
-  // Explicit manual show/hide — always available regardless of the
-  // auto-hide timer, since relying on tap-to-wake alone was unreliable.
   els.btnToggleControls.addEventListener('click', function () {
-    if (els.controls.classList.contains('da-hidden')) scheduleHideControls();
-    else hideControlsNow();
+    markInteracted();
+    if (els.controls.classList.contains('da-hidden')) showControls();
+    else hideControls();
   });
 
   // ---- Share ----
@@ -503,7 +492,7 @@
     } else {
       show(els.shareSheet);
     }
-    wake();
+    markInteracted();
   });
   els.shareSheet.addEventListener('click', function (e) {
     var action = e.target.getAttribute('data-action');
@@ -526,6 +515,6 @@
       state.pageFlip.turnToPage(0);
       show(els.openBookBtn);
     }
-    scheduleHideControls();
+    hideControls();
   }
 })();
