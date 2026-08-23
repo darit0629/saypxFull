@@ -479,12 +479,10 @@
     els.btnToggleControls.classList.remove('da-open');
   }
   function wake() { state.userInteracted = true; scheduleHideControls(); }
-  ['pointerdown', 'keydown'].forEach(function (ev) {
-    // Capture phase: PageFlip's own drag handlers stop propagation on the
-    // book element during bubbling, so a bubble-phase listener here would
-    // never fire while the user is interacting with the pages themselves.
-    els.viewerRoot.addEventListener(ev, wake, { passive: true, capture: true });
-  });
+  // Deliberately NOT wired to taps on the album itself anymore — that made
+  // the control bar pop up on every single tap (including zoom attempts).
+  // Keyboard use is still a clear "I want to see the controls" signal.
+  els.viewerRoot.addEventListener('keydown', wake, { passive: true, capture: true });
 
   // Explicit manual show/hide — always available regardless of the
   // auto-hide timer, since relying on tap-to-wake alone was unreliable.
