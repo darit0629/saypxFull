@@ -1864,6 +1864,61 @@ section {
   font-size: 18px;
 }
 
+/* Digital Photo Book Spotlight Section */
+.digital-photobook {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.digital-photobook-features {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-32);
+  max-width: 900px;
+  margin: 0 auto var(--space-32);
+  text-align: center;
+}
+
+.digital-photobook-features .webdev-feature-icon {
+  margin: 0 auto var(--space-16);
+}
+
+.digital-photobook-features h4 {
+  font-size: 16px;
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+}
+
+.digital-photobook-features p {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin-bottom: 0;
+}
+
+.digital-photobook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-16);
+}
+
+@media (max-width: 768px) {
+  .digital-photobook-features {
+    grid-template-columns: 1fr;
+    gap: var(--space-24);
+  }
+  .digital-photobook-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .digital-photobook-actions .cta-button,
+  .digital-photobook-actions .cta-button-ghost {
+    justify-content: center;
+  }
+}
+
 /* Web Development Spotlight Section */
 .webdev {
   position: relative;
