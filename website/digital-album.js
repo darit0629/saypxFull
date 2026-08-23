@@ -252,6 +252,9 @@
       updatePageCounter();
       preloadNeighbors(e.data);
       if (e.data > 0) hide(els.openBookBtn);
+      // Briefly reveal the controls so the page counter is visible after
+      // every turn, without going back to showing on every tap/zoom.
+      scheduleHideControls();
     });
 
     setupFlipGestures();
