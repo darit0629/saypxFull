@@ -11,7 +11,7 @@ const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlb
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://saypx.in';
 
 function publicAlbumUrl(code) {
-  return `${PUBLIC_BASE_URL}/a/${code}`;
+  return `${PUBLIC_BASE_URL}/album/${code}`;
 }
 
 const TMP_DIR = path.join(__dirname, '..', '.uploads-tmp');

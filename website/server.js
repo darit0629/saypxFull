@@ -253,8 +253,12 @@ app.use('/api/admin/albums', requireAuth, require('./lib/albumRoutes').buildRout
 app.use('/api/public/digital-albums', require('./lib/publicAlbumRoutes').buildRouter());
 
 // ---- Digital Photo Book public viewer page ----
-// /a/:code is the current short link; /digital-album/:code is kept working
-// indefinitely since it's what earlier albums' printed QR cards point to.
+// /album/:code is the current short link; /a/:code and /digital-album/:code
+// are kept working indefinitely since earlier albums' printed QR cards and
+// shared links may already point at them.
+app.get('/album/:code', (req, res) => {
+  res.sendFile(path.join(__dirname, 'digital-album.html'));
+});
 app.get('/a/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'digital-album.html'));
 });
