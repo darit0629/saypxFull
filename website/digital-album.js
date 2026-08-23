@@ -169,6 +169,8 @@
 
   function buildPageElements() {
     els.bookContainer.innerHTML = '';
+    var spineEls = [];
+    var coverSrc = null;
     state.digitalPages.forEach(function (entry, i) {
       var page = document.createElement('div');
       page.className = 'page';
@@ -193,21 +195,87 @@
       // inside the cover page's own DOM so it tracks PageFlip's sizing/
       // positioning for free instead of needing separate layout math. Back
       // cover gets the mirror image on its right edge, for the same
-      // "resting closed" look at the end of the book as at the start.
+      // "resting closed" look at the end of the book as at the start. Both
+      // are tinted from the same front-cover photo so they read as one book.
       if (entry.isCover || entry.isBackCover) {
         var spine = document.createElement('div');
         spine.className = 'da-spine' + (entry.isBackCover ? ' da-spine-right' : '');
-        var spineLabel = ((state.album.eventType || 'Photo') + ' Album').toUpperCase();
+        var spineLabel = 'DIGITAL PHOTO BOOK';
         spine.innerHTML =
           '<span class="da-spine-ornament da-spine-ornament-top">&#10085;</span>' +
-          '<span class="da-spine-text">' + spineLabel.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</span>' +
+          '<span class="da-spine-text">' + spineLabel + '</span>' +
           '<span class="da-spine-ornament da-spine-ornament-bottom">&#10085;</span>';
         page.appendChild(spine);
+        spineEls.push(spine);
+        if (entry.isCover) coverSrc = entry.src;
       }
 
       page.dataset.index = i;
       els.bookContainer.appendChild(page);
     });
+    if (coverSrc && spineEls.length) tintSpinesFromCover(coverSrc, spineEls);
+  }
+
+  // Samples the cover photo's average color and turns it into a leather-
+  // spine-style gradient (dark edges, lit highlight down the middle - same
+  // shape as the original fixed maroon one), so the spine always matches
+  // whatever photo was actually used as the cover instead of one hardcoded
+  // color for every album.
+  function tintSpinesFromCover(src, spineEls) {
+    var img = new Image();
+    img.onload = function () {
+      var size = 24;
+      var canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      var data;
+      try {
+        data = ctx.getImageData(0, 0, size, size).data;
+      } catch (e) {
+        return; // canvas got tainted somehow - keep the default spine color
+      }
+      var r = 0, g = 0, b = 0, n = 0;
+      for (var i = 0; i < data.length; i += 4) {
+        r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+      }
+      r /= n; g /= n; b /= n;
+
+      var hsl = rgbToHsl(r, g, b);
+      var h = hsl[0], s = Math.min(75, Math.max(35, hsl[1]));
+      var edge = 'hsl(' + h + ',' + s + '%,' + Math.max(6, hsl[2] * 0.18) + '%)';
+      var mid = 'hsl(' + h + ',' + s + '%,' + Math.min(30, Math.max(14, hsl[2] * 0.45)) + '%)';
+      var light = 'hsl(' + h + ',' + s + '%,' + Math.min(45, Math.max(24, hsl[2] * 0.7)) + '%)';
+      var gradient =
+        'linear-gradient(to right,' +
+        edge + ' 0%,' + mid + ' 22%,' + light + ' 42%,' + light + ' 50%,' +
+        light + ' 58%,' + mid + ' 78%,' + edge + ' 100%)';
+
+      spineEls.forEach(function (el) {
+        el.style.background = gradient;
+      });
+    };
+    img.src = src;
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h, s, l = (max + min) / 2;
+    if (max === min) {
+      h = s = 0;
+    } else {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        default: h = (r - g) / d + 4;
+      }
+      h *= 60;
+    }
+    return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
   }
 
   function initPageFlip() {
