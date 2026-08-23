@@ -12,17 +12,24 @@ interface Props {
 
 const NEW_CATEGORY = '__new__';
 
+function titleFromFilename(name: string) {
+  const base = name.replace(/\.[^./\\]+$/, '');
+  return base.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export default function MediaDialog({ open, onClose, onSaved, categories, editingItem }: Props) {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [category, setCategory] = useState('');
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categoryEntries = Object.entries(categories);
+  const isBatch = files.length > 1;
 
   useEffect(() => {
     if (open) {
@@ -30,7 +37,8 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
       setSubtitle(editingItem?.subtitle || '');
       setCategory(editingItem?.category || categoryEntries[0]?.[0] || NEW_CATEGORY);
       setNewCategoryLabel('');
-      setFile(null);
+      setFiles([]);
+      setProgress(null);
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -39,27 +47,55 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
   if (!open) return null;
   const isEditing = !!editingItem;
 
+  function removeFile(idx: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   async function handleSave() {
-    if (!title.trim()) return setError('Title is required');
     if (category === NEW_CATEGORY && !newCategoryLabel.trim()) return setError('New category name is required');
-    if (!isEditing && !file) return setError('A photo or video file is required');
+    const resolvedCategory = category === NEW_CATEGORY ? newCategoryLabel.trim() : category;
 
     setSaving(true);
     setError(null);
     try {
       if (isEditing) {
+        if (!title.trim()) return setError('Title is required');
         await api.put(`/api/website/portfolio/${editingItem._index}`, {
           title: title.trim(),
           subtitle: subtitle.trim(),
-          category: category === NEW_CATEGORY ? newCategoryLabel.trim() : category,
+          category: resolvedCategory,
         });
+      } else if (isBatch) {
+        const failed: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          setProgress({ done: i, total: files.length });
+          try {
+            const formData = new FormData();
+            formData.append('title', titleFromFilename(f.name) || f.name);
+            formData.append('category', category);
+            if (category === NEW_CATEGORY) formData.append('newCategoryLabel', newCategoryLabel.trim());
+            formData.append('file', f);
+            await apiUpload('/api/website/portfolio', formData);
+          } catch {
+            failed.push(f.name);
+          }
+        }
+        setProgress(null);
+        if (failed.length) {
+          setError(`${files.length - failed.length} of ${files.length} uploaded. Failed: ${failed.join(', ')}`);
+          onSaved();
+          return;
+        }
       } else {
+        if (!title.trim()) return setError('Title is required');
+        if (!files[0]) return setError('A photo or video file is required');
         const formData = new FormData();
         formData.append('title', title.trim());
         formData.append('subtitle', subtitle.trim());
         formData.append('category', category);
         if (category === NEW_CATEGORY) formData.append('newCategoryLabel', newCategoryLabel.trim());
-        formData.append('file', file as File);
+        formData.append('file', files[0]);
         await apiUpload('/api/website/portfolio', formData);
       }
       onSaved();
@@ -68,6 +104,7 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally {
       setSaving(false);
+      setProgress(null);
     }
   }
 
@@ -78,29 +115,40 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold">{isEditing ? 'Edit Media' : 'Add Media'}</p>
+          <p className="text-sm font-semibold">
+            {isEditing ? 'Edit Media' : isBatch ? `Add Media (${files.length} files)` : 'Add Media'}
+          </p>
           <button onClick={onClose} aria-label="Close">
             <X size={18} className="text-text-muted" />
           </button>
         </div>
 
         <div className="space-y-3">
-          <div>
-            <label className="block text-[10px] text-text-muted mb-1">Title</label>
-            <input
-              className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-text-muted mb-1">Subtitle (optional)</label>
-            <input
-              className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-            />
-          </div>
+          {!isBatch && (
+            <>
+              <div>
+                <label className="block text-[10px] text-text-muted mb-1">Title</label>
+                <input
+                  className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-text-muted mb-1">Subtitle (optional)</label>
+                <input
+                  className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+          {isBatch && (
+            <p className="text-xs text-text-muted">
+              Titles will be set from each file's name — you can rename them individually afterward.
+            </p>
+          )}
           <div>
             <label className="block text-[10px] text-text-muted mb-1">Category</label>
             <select
@@ -128,20 +176,44 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
           )}
           {!isEditing && (
             <div>
-              <label className="block text-[10px] text-text-muted mb-1">Photo or Video</label>
+              <label className="block text-[10px] text-text-muted mb-1">Photos or Videos</label>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm text-text-muted"
               >
-                {file ? file.name : 'Choose file…'}
+                {files.length === 0
+                  ? 'Choose files…'
+                  : files.length === 1
+                    ? files[0].name
+                    : `${files.length} files selected`}
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*,video/*"
+                multiple
                 className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
               />
+              {isBatch && (
+                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                  {files.map((f, i) => (
+                    <li
+                      key={`${f.name}-${i}`}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-[#171921] px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="truncate">{f.name}</span>
+                      <button
+                        onClick={() => removeFile(i)}
+                        aria-label={`Remove ${f.name}`}
+                        className="shrink-0 text-text-muted hover:text-danger"
+                      >
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -149,10 +221,18 @@ export default function MediaDialog({ open, onClose, onSaved, categories, editin
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || (isBatch && files.length === 0)}
             className="w-full rounded-lg gradient-brand py-2.5 text-sm font-semibold disabled:opacity-60"
           >
-            {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Upload'}
+            {saving
+              ? progress
+                ? `Uploading ${progress.done + 1} of ${progress.total}…`
+                : 'Saving…'
+              : isEditing
+                ? 'Save Changes'
+                : isBatch
+                  ? `Upload ${files.length} Files`
+                  : 'Upload'}
           </button>
         </div>
       </div>
