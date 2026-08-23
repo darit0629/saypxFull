@@ -215,6 +215,27 @@ html, body {
   z-index: 30;
 }
 .da-controls.da-hidden { opacity: 0; transform: translateY(12px); pointer-events: none; }
+.da-toggle-controls-btn {
+  position: fixed;
+  left: 50%;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--da-chrome-bg);
+  color: var(--da-text);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  z-index: 31;
+  transition: transform 0.35s ease;
+}
+.da-toggle-controls-btn.da-open svg { transform: rotate(180deg); }
+.da-toggle-controls-btn:active { transform: translateX(-50%) scale(0.94); }
 .da-controls-row { display: flex; align-items: center; gap: 8px; }
 .da-btn {
   display: flex;

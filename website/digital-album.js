@@ -16,6 +16,7 @@
     bookStage: document.getElementById('bookStage'),
     bookContainer: document.getElementById('bookContainer'),
     controls: document.getElementById('controls'),
+    btnToggleControls: document.getElementById('btnToggleControls'),
     btnPrev: document.getElementById('btnPrev'),
     btnNext: document.getElementById('btnNext'),
     pageCounter: document.getElementById('pageCounter'),
@@ -231,6 +232,12 @@
       swipeDistance: 20,
       drawShadow: true,
       flippingTime: 700,
+      // PageFlip's own built-in touch/mouse handling flips on a plain tap
+      // (any click/tap that isn't a real drag still calls its internal
+      // flip()). That collides with tap-to-zoom on mobile. We disable it
+      // and drive flips ourselves in setupFlipGestures() below, which only
+      // starts a flip once the pointer has actually moved like a drag.
+      useMouseEvents: false,
     });
 
     state.pageFlip.loadFromHTML(document.querySelectorAll('.page'));
@@ -247,7 +254,51 @@
       if (e.data > 0) hide(els.openBookBtn);
     });
 
+    setupFlipGestures();
     resizeStage();
+  }
+
+  // ---- Drag-to-flip (tap alone does nothing — only a real hold-and-move
+  // gesture turns a page, so it never fights with tap/pinch-to-zoom).
+  // Drives flipNext()/flipPrev() directly (same trusted call the buttons
+  // use) once a real horizontal drag crosses the threshold, rather than
+  // manually driving PageFlip's own low-level fold/corner API, which
+  // expects the drag to originate from an actual page corner to complete
+  // a flip and otherwise just springs back. ----
+  function setupFlipGestures() {
+    // initPageFlip() can re-run (e.g. rotating the phone back from the
+    // "turn sideways" prompt) and always makes a fresh PageFlip instance,
+    // but the DOM element and its listeners persist — only attach once.
+    if (state.flipGesturesReady) return;
+    state.flipGesturesReady = true;
+
+    var DRAG_THRESHOLD = 60;
+    var activePointers = 0;
+    var startX = null, startY = null, pointerId = null, triggered = false;
+
+    els.bookContainer.addEventListener('pointerdown', function (e) {
+      activePointers++;
+      // A second finger landing means this is a pinch, not a page drag —
+      // bail out so the pinch-zoom handler on bookStage owns it cleanly.
+      if (activePointers > 1 || !state.pageFlip || state.zoom > 1) { startX = null; return; }
+      startX = e.clientX; startY = e.clientY; pointerId = e.pointerId; triggered = false;
+    });
+
+    els.bookContainer.addEventListener('pointermove', function (e) {
+      if (startX === null || triggered || activePointers > 1 || e.pointerId !== pointerId) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (Math.abs(dx) < DRAG_THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
+      triggered = true;
+      if (dx < 0) state.pageFlip.flipNext();
+      else state.pageFlip.flipPrev();
+    });
+
+    function endGesture(e) {
+      activePointers = Math.max(0, activePointers - 1);
+      if (e.pointerId === pointerId) { startX = null; pointerId = null; }
+    }
+    els.bookContainer.addEventListener('pointerup', endGesture);
+    els.bookContainer.addEventListener('pointercancel', endGesture);
   }
 
   function resizeStage() {
@@ -419,16 +470,27 @@
   function scheduleHideControls() {
     clearTimeout(state.controlsHideTimer);
     els.controls.classList.remove('da-hidden');
-    state.controlsHideTimer = setTimeout(function () {
-      els.controls.classList.add('da-hidden');
-    }, 3200);
+    els.btnToggleControls.classList.add('da-open');
+    state.controlsHideTimer = setTimeout(hideControlsNow, 3200);
+  }
+  function hideControlsNow() {
+    clearTimeout(state.controlsHideTimer);
+    els.controls.classList.add('da-hidden');
+    els.btnToggleControls.classList.remove('da-open');
   }
   function wake() { state.userInteracted = true; scheduleHideControls(); }
-  ['pointerdown', 'pointermove', 'keydown'].forEach(function (ev) {
+  ['pointerdown', 'keydown'].forEach(function (ev) {
     // Capture phase: PageFlip's own drag handlers stop propagation on the
     // book element during bubbling, so a bubble-phase listener here would
     // never fire while the user is interacting with the pages themselves.
     els.viewerRoot.addEventListener(ev, wake, { passive: true, capture: true });
+  });
+
+  // Explicit manual show/hide — always available regardless of the
+  // auto-hide timer, since relying on tap-to-wake alone was unreliable.
+  els.btnToggleControls.addEventListener('click', function () {
+    if (els.controls.classList.contains('da-hidden')) scheduleHideControls();
+    else hideControlsNow();
   });
 
   // ---- Share ----
