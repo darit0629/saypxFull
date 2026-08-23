@@ -184,6 +184,7 @@ export interface DigitalAlbum {
   allow_share: boolean;
   sound_enabled: boolean;
   watermark_enabled: boolean;
+  compress_images: boolean;
   view_count: number;
   spread_count: number | null;
   page_count: number;

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS digital_albums (
   sound_enabled INTEGER NOT NULL DEFAULT 1,
   watermark_enabled INTEGER NOT NULL DEFAULT 0,
   watermark_json TEXT,
+  compress_images INTEGER NOT NULL DEFAULT 1,
   view_count INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
@@ -92,6 +93,9 @@ if (albumCols.includes('cover_page_id') && !albumCols.includes('cover_image_id')
 }
 if (albumCols.includes('back_cover_page_id') && !albumCols.includes('back_cover_image_id')) {
   db.exec('ALTER TABLE digital_albums RENAME COLUMN back_cover_page_id TO back_cover_image_id');
+}
+if (!albumCols.includes('compress_images')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN compress_images INTEGER NOT NULL DEFAULT 1');
 }
 
 module.exports = db;

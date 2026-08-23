@@ -85,6 +85,7 @@ function serializeAlbum(row) {
     allow_share: !!row.allow_share,
     sound_enabled: !!row.sound_enabled,
     watermark_enabled: !!row.watermark_enabled,
+    compress_images: !!row.compress_images,
     spread_count: row.page_mode === 'FULL_SPREAD' ? pageCount : null,
     page_count: digitalPageCount,
     public_url: publicAlbumUrl(row.public_code),
@@ -166,14 +167,14 @@ function buildRouter() {
   });
 
   router.post('/', (req, res) => {
-    const { title, clientName, eventType, eventDate, photographerName, description, pageMode } = req.body || {};
+    const { title, clientName, eventType, eventDate, photographerName, description, pageMode, compressImages } = req.body || {};
     if (!title || !title.trim()) return res.status(400).json({ error: 'Album name is required' });
 
     const code = uniqueCode();
     const result = db
       .prepare(
-        `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description, public_code, page_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description, public_code, page_mode, compress_images)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title.trim(),
@@ -183,7 +184,8 @@ function buildRouter() {
         photographerName || null,
         description || null,
         code,
-        pageMode === 'FULL_SPREAD' ? 'FULL_SPREAD' : 'SINGLE_PAGE'
+        pageMode === 'FULL_SPREAD' ? 'FULL_SPREAD' : 'SINGLE_PAGE',
+        compressImages === false ? 0 : 1
       );
 
     logAudit(result.lastInsertRowid, 'album_created', { title });
@@ -199,7 +201,7 @@ function buildRouter() {
       'title', 'client_name', 'event_type', 'event_date', 'photographer_name', 'description',
       'bride_name', 'groom_name', 'venue', 'location', 'custom_message',
       'cover_image_id', 'back_cover_image_id', 'allow_download', 'allow_share',
-      'sound_enabled', 'watermark_enabled', 'watermark_json', 'status',
+      'sound_enabled', 'watermark_enabled', 'watermark_json', 'status', 'compress_images',
     ];
     const fields = [];
     const params = [];
@@ -207,7 +209,8 @@ function buildRouter() {
       const bodyKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
       if (req.body && Object.prototype.hasOwnProperty.call(req.body, bodyKey)) {
         fields.push(`${key} = ?`);
-        params.push(req.body[bodyKey]);
+        const val = req.body[bodyKey];
+        params.push(typeof val === 'boolean' ? (val ? 1 : 0) : val);
       }
     }
     if (req.body?.status === 'PUBLISHED' && existing.status !== 'PUBLISHED') {
@@ -300,7 +303,7 @@ function buildRouter() {
 
       const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM digital_album_pages WHERE album_id = ?').get(album.id).n;
       const filenameBase = `page-${Date.now()}-${crypto.randomInt(1e6)}`;
-      const processed = await processAlbumImage(album.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname);
+      const processed = await processAlbumImage(album.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname, !!album.compress_images);
 
       const imgResult = db
         .prepare(
@@ -357,9 +360,10 @@ function buildRouter() {
       if (!page) { cleanup(); return res.status(404).json({ error: 'Page not found' }); }
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+      const album = db.prepare('SELECT compress_images FROM digital_albums WHERE id = ?').get(req.params.id);
       const oldImage = db.prepare('SELECT * FROM digital_album_images WHERE id = ?').get(page.image_id);
       const filenameBase = `page-${Date.now()}-${crypto.randomInt(1e6)}`;
-      const processed = await processAlbumImage(req.params.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname);
+      const processed = await processAlbumImage(req.params.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname, !!album?.compress_images);
 
       db.prepare(
         `UPDATE digital_album_images SET original_path=?, display_path=?, thumbnail_path=?, width=?, height=?, mime_type=?, file_size=?, center_x_pct=50
@@ -438,7 +442,7 @@ function buildRouter() {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const filenameBase = `${column}-${Date.now()}-${crypto.randomInt(1e6)}`;
-        const processed = await processAlbumImage(album.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname);
+        const processed = await processAlbumImage(album.id, req.file.path, filenameBase, req.file.mimetype, req.file.originalname, !!album.compress_images);
         const imgResult = db
           .prepare(
             `INSERT INTO digital_album_images (album_id, original_path, display_path, thumbnail_path, width, height, mime_type, file_size)

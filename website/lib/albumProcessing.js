@@ -16,20 +16,39 @@ function ensureAlbumDirs(albumId) {
   return base;
 }
 
-// Processes one uploaded page/spread image: keeps the original untouched,
-// generates a display-quality version (for the viewer) and a small thumbnail
-// (for the admin page manager). Returns paths + dimensions for center-fold math.
-async function processAlbumImage(albumId, srcPath, filenameBase, mimeType, originalFilename) {
+// Processes one uploaded page/spread image: generates a display-quality
+// version (for the viewer) and a small thumbnail (for the admin page
+// manager). Returns paths + dimensions for center-fold math.
+//
+// `compress` controls what happens to the "original" copy (the one used for
+// downloads/print, never the viewer itself, which always uses displayPath):
+//   - true  (default): re-encode at a large-but-bounded size with a high-
+//     quality JPEG encoder instead of storing the raw upload byte-for-byte.
+//     A 20-30MB scanned page typically becomes a few MB with no visible
+//     quality loss at normal viewing/print sizes - this is what actually
+//     saves storage across a hundred-plus-page album.
+//   - false: copy the exact uploaded file untouched, for albums where
+//     preserving the precise original bytes matters more than storage.
+async function processAlbumImage(albumId, srcPath, filenameBase, mimeType, originalFilename, compress = true) {
   const base = ensureAlbumDirs(albumId);
   const ext = '.jpg';
   // multer's temp path has no extension, so derive it from the real uploaded
   // filename instead (falling back to .jpg if that's somehow missing too).
   const srcExt = (originalFilename && path.extname(originalFilename)) || path.extname(srcPath) || '.jpg';
-  const originalDest = path.join(base, 'original', filenameBase + srcExt);
+  const originalDest = compress
+    ? path.join(base, 'original', filenameBase + ext)
+    : path.join(base, 'original', filenameBase + srcExt);
   const displayDest = path.join(base, 'display', filenameBase + ext);
   const thumbDest = path.join(base, 'thumbnail', filenameBase + ext);
 
-  fs.copyFileSync(srcPath, originalDest);
+  if (compress) {
+    await sharp(srcPath)
+      .resize({ width: 3500, height: 3500, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 92, mozjpeg: true })
+      .toFile(originalDest);
+  } else {
+    fs.copyFileSync(srcPath, originalDest);
+  }
 
   const meta = await sharp(srcPath).metadata();
   await sharp(srcPath)
@@ -48,7 +67,9 @@ async function processAlbumImage(albumId, srcPath, filenameBase, mimeType, origi
     thumbnailPath: `${relBase}/thumbnail/${path.basename(thumbDest)}`,
     width: meta.width,
     height: meta.height,
-    mimeType: mimeType || 'image/jpeg',
+    // Compression always re-encodes the original to JPEG regardless of the
+    // uploaded format, so the stored mime type must reflect that too.
+    mimeType: compress ? 'image/jpeg' : (mimeType || 'image/jpeg'),
   };
 }
 

@@ -19,6 +19,7 @@ export default function CreateAlbumDialog({ open, onClose }: Props) {
   const [clientName, setClientName] = useState('');
   const [eventType, setEventType] = useState(EVENT_TYPES[0]);
   const [pageMode, setPageMode] = useState<PageMode>('SINGLE_PAGE');
+  const [compressImages, setCompressImages] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +29,7 @@ export default function CreateAlbumDialog({ open, onClose }: Props) {
       setClientName('');
       setEventType(EVENT_TYPES[0]);
       setPageMode('SINGLE_PAGE');
+      setCompressImages(true);
       setError(null);
     }
   }, [open]);
@@ -44,6 +46,7 @@ export default function CreateAlbumDialog({ open, onClose }: Props) {
         clientName: clientName.trim(),
         eventType,
         pageMode,
+        compressImages,
       });
       onClose();
       navigate(`/website/photo-books/${album.id}`);
@@ -123,6 +126,35 @@ export default function CreateAlbumDialog({ open, onClose }: Props) {
                 </p>
               </button>
             </div>
+          </div>
+          <div>
+            <label className="block text-[10px] text-text-muted mb-1">Storage</label>
+            <button
+              onClick={() => setCompressImages(!compressImages)}
+              className={`w-full flex items-center justify-between rounded-lg border p-3 text-left text-sm ${
+                compressImages ? 'border-brand bg-brand/10' : 'border-border'
+              }`}
+            >
+              <span>
+                <span className="font-medium">Compress Photos</span>
+                <span className="block text-[11px] text-text-muted mt-0.5">
+                  {compressImages
+                    ? 'Uses much less storage with no visible quality loss. Recommended.'
+                    : 'Off — keeps the exact original files, using more storage.'}
+                </span>
+              </span>
+              <span
+                className={`shrink-0 relative ml-3 h-5 w-9 rounded-full transition-colors ${
+                  compressImages ? 'bg-brand' : 'bg-white/15'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                    compressImages ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </span>
+            </button>
           </div>
 
           {error && <p className="text-xs text-danger">{error}</p>}
