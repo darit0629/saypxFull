@@ -22,7 +22,15 @@ import { useAuth } from '../../lib/auth';
 import HelpModal from '../HelpModal';
 import { WEBSITE_BASE } from '../../lib/config';
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  end?: boolean;
+  external?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/crm', label: 'CRM', icon: Users },
   { to: '/bills', label: 'Bills', icon: Receipt },
@@ -32,14 +40,14 @@ const NAV_ITEMS = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const MAIL_NAV_ITEMS = [
+const MAIL_NAV_ITEMS: NavItem[] = [
   { to: '/mail', label: 'Inbox', icon: Inbox, end: true },
   { to: '/mail/sent', label: 'Sent', icon: Send },
   { to: '/mail/drafts', label: 'Drafts', icon: FileEdit },
   { to: '/mail/trash', label: 'Trash', icon: Trash2 },
 ];
 
-const WEBSITE_NAV_ITEMS = [
+const WEBSITE_NAV_ITEMS: NavItem[] = [
   { to: '/website', label: 'Portfolio', icon: Image, end: true },
   { to: '/website/photo-books', label: 'Photo Books', icon: BookImage },
   { to: WEBSITE_BASE, label: 'Visit Website', icon: Globe, external: true },

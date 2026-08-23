@@ -21,29 +21,37 @@ import {
 } from 'lucide-react';
 import { WEBSITE_BASE } from '../../lib/config';
 
-const BILL_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  end?: boolean;
+  external?: boolean;
+}
+
+const BILL_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/crm', label: 'CRM', icon: Users },
 ];
-const BILL_RIGHT_ITEMS = [
+const BILL_RIGHT_ITEMS: NavItem[] = [
   { to: '/bills', label: 'Bills', icon: Receipt },
   { to: '/more', label: 'More', icon: MoreHorizontal },
 ];
 
-const MAIL_ITEMS = [
+const MAIL_ITEMS: NavItem[] = [
   { to: '/mail', label: 'Inbox', icon: Inbox, end: true },
   { to: '/mail/sent', label: 'Sent', icon: Send },
 ];
-const MAIL_RIGHT_ITEMS = [
+const MAIL_RIGHT_ITEMS: NavItem[] = [
   { to: '/mail/drafts', label: 'Drafts', icon: FileEdit },
   { to: '/mail/trash', label: 'Trash', icon: Trash2 },
 ];
 
-const WEBSITE_ITEMS = [
+const WEBSITE_ITEMS: NavItem[] = [
   { to: '/website', label: 'Portfolio', icon: Image, end: true },
   { to: '/website/photo-books', label: 'Photo Books', icon: BookImage },
 ];
-const WEBSITE_RIGHT_ITEMS = [
+const WEBSITE_RIGHT_ITEMS: NavItem[] = [
   { to: WEBSITE_BASE, label: 'Visit Site', icon: Globe, external: true },
   { to: '/more', label: 'More', icon: MoreHorizontal },
 ];
