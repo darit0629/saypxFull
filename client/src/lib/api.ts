@@ -1,9 +1,23 @@
+// A 401 mid-session (the cookie expired, or the server restarted with a new
+// SESSION_SECRET) used to just throw a generic error that individual pages
+// often swallowed or displayed poorly — e.g. Mail would just look "broken"
+// with no indication you'd simply been logged out. Redirect straight to
+// /login instead, except for the two auth endpoints themselves, where a 401
+// is an expected, meaningful response (not logged in yet / wrong password).
+function handleUnauthorized(url: string, status: number) {
+  if (status !== 401) return;
+  if (url === '/api/auth/me' || url === '/api/auth/login') return;
+  if (window.location.pathname === '/login') return;
+  window.location.href = '/login';
+}
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
+  handleUnauthorized(url, res.status);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
@@ -24,6 +38,7 @@ export const api = {
 // boundary header is required for FormData bodies to parse server-side.
 export async function apiUpload<T>(url: string, formData: FormData): Promise<T> {
   const res = await fetch(url, { method: 'POST', body: formData });
+  handleUnauthorized(url, res.status);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
