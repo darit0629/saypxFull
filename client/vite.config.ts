@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png'],
       manifest: {
-        name: 'SAYPX Billing',
-        short_name: 'Billing',
+        name: 'SAYPX',
+        short_name: 'SAYPX',
         description: 'Invoicing, CRM and expense tracking for SAYPX Photography',
         start_url: '/',
         scope: '/',
