@@ -11,7 +11,7 @@ const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlb
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://saypx.in';
 
 function publicAlbumUrl(code) {
-  return `${PUBLIC_BASE_URL}/digital-album/${code}`;
+  return `${PUBLIC_BASE_URL}/a/${code}`;
 }
 
 const TMP_DIR = path.join(__dirname, '..', '.uploads-tmp');
@@ -30,8 +30,8 @@ const upload = multer({
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function generateCode() {
-  let code = 'SYPX-';
-  for (let i = 0; i < 5; i++) {
+  let code = '';
+  for (let i = 0; i < 6; i++) {
     code += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
   }
   return code;
