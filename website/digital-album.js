@@ -10,6 +10,7 @@
     error: document.getElementById('errorScreen'),
     errorMessage: document.getElementById('errorMessage'),
     rotatePrompt: document.getElementById('rotatePrompt'),
+    btnRotateScreen: document.getElementById('btnRotateScreen'),
     coverTitle: document.getElementById('coverTitle'),
     openBookBtn: document.getElementById('openBookBtn'),
     viewerRoot: document.getElementById('viewerRoot'),
@@ -130,6 +131,24 @@
   window.addEventListener('orientationchange', function () {
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 200);
   });
+
+  // Screen Orientation lock only works inside a fullscreen context on most
+  // Android browsers, and isn't supported at all on iOS Safari - so this is
+  // a nice-to-have shortcut on top of the physical "turn your phone" advice
+  // above it, not a replacement for it. Fails silently either way; the
+  // resize/orientationchange listeners above pick up the change if it works.
+  if (els.btnRotateScreen) {
+    els.btnRotateScreen.addEventListener('click', function () {
+      var root = document.documentElement;
+      var requestFs = root.requestFullscreen || root.webkitRequestFullscreen;
+      var fsPromise = requestFs ? requestFs.call(root).catch(function () {}) : Promise.resolve();
+      fsPromise.then(function () {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(function () {});
+        }
+      });
+    });
+  }
 
   // ---- Open book: a real physical flip from the cover, via PageFlip itself ----
   els.openBookBtn.addEventListener('click', function () {
@@ -325,12 +344,12 @@
   }
 
   // ---- Drag-to-flip (tap alone does nothing — only a real hold-and-move
-  // gesture turns a page, so it never fights with tap/pinch-to-zoom).
-  // Drives flipNext()/flipPrev() directly (same trusted call the buttons
-  // use) once a real horizontal drag crosses the threshold, rather than
-  // manually driving PageFlip's own low-level fold/corner API, which
-  // expects the drag to originate from an actual page corner to complete
-  // a flip and otherwise just springs back. ----
+  // gesture turns a page, so it never fights with tap/pinch-to-zoom). Once
+  // a small movement confirms this is a real drag (not a tap), we hand off
+  // to PageFlip's own low-level fold API so the page visually bends and
+  // follows the finger the whole time it's held, exactly like turning a
+  // real page — only actually completing the turn if released past the
+  // halfway point, otherwise springing back. ----
   function setupFlipGestures() {
     // initPageFlip() can re-run (e.g. rotating the phone back from the
     // "turn sideways" prompt) and always makes a fresh PageFlip instance,
@@ -338,30 +357,43 @@
     if (state.flipGesturesReady) return;
     state.flipGesturesReady = true;
 
-    var DRAG_THRESHOLD = 60;
+    var CONFIRM_THRESHOLD = 16; // px of movement before we treat this as a drag, not a tap
     var activePointers = 0;
-    var startX = null, startY = null, pointerId = null, triggered = false;
+    var startX = null, startY = null, pointerId = null, dragging = false;
+
+    function bookPos(clientX, clientY) {
+      var rect = els.bookContainer.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
 
     els.bookContainer.addEventListener('pointerdown', function (e) {
       activePointers++;
       // A second finger landing means this is a pinch, not a page drag —
       // bail out so the pinch-zoom handler on bookStage owns it cleanly.
       if (activePointers > 1 || !state.pageFlip || state.zoom > 1) { startX = null; return; }
-      startX = e.clientX; startY = e.clientY; pointerId = e.pointerId; triggered = false;
+      startX = e.clientX; startY = e.clientY; pointerId = e.pointerId; dragging = false;
     });
 
     els.bookContainer.addEventListener('pointermove', function (e) {
-      if (startX === null || triggered || activePointers > 1 || e.pointerId !== pointerId) return;
-      var dx = e.clientX - startX, dy = e.clientY - startY;
-      if (Math.abs(dx) < DRAG_THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
-      triggered = true;
-      if (dx < 0) state.pageFlip.flipNext();
-      else state.pageFlip.flipPrev();
+      if (startX === null || activePointers > 1 || e.pointerId !== pointerId) return;
+      var pos = bookPos(e.clientX, e.clientY);
+      if (!dragging) {
+        var dx = e.clientX - startX, dy = e.clientY - startY;
+        if (Math.abs(dy) > Math.abs(dx)) { startX = null; return; } // vertical drag - let it scroll/pass through
+        if (Math.sqrt(dx * dx + dy * dy) < CONFIRM_THRESHOLD) return;
+        dragging = true;
+        state.pageFlip.startUserTouch(bookPos(startX, startY));
+      }
+      state.pageFlip.userMove(pos, true);
     });
 
     function endGesture(e) {
       activePointers = Math.max(0, activePointers - 1);
-      if (e.pointerId === pointerId) { startX = null; pointerId = null; }
+      if (e.pointerId !== pointerId) return;
+      if (dragging && state.pageFlip) state.pageFlip.userStop(bookPos(e.clientX, e.clientY));
+      startX = null;
+      pointerId = null;
+      dragging = false;
     }
     els.bookContainer.addEventListener('pointerup', endGesture);
     els.bookContainer.addEventListener('pointercancel', endGesture);
