@@ -205,16 +205,16 @@ html, body {
   transition: opacity 0.35s ease, transform 0.35s ease;
   z-index: 30;
 }
+@media (max-width: 480px) {
+  /* Extra right padding shifts the centered row left, clearing room for
+     the bottom-right toggle button so they don't collide on narrow phones. */
+  .da-controls { padding-right: 54px; }
+}
 .da-controls.da-hidden { opacity: 0; transform: translateY(12px); pointer-events: none; }
 .da-toggle-controls-btn {
-  /* Sits just above the controls panel (both rows) rather than beside it -
-     a horizontally-centered position at the same height as the panel
-     always lands on top of whichever button ends up in the middle of the
-     (also centered) row underneath, on narrow screens especially. */
   position: fixed;
-  left: 50%;
-  bottom: calc(118px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  right: calc(10px + env(safe-area-inset-right));
+  bottom: calc(8px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -230,7 +230,7 @@ html, body {
   transition: transform 0.35s ease;
 }
 .da-toggle-controls-btn.da-open svg { transform: rotate(180deg); }
-.da-toggle-controls-btn:active { transform: translateX(-50%) scale(0.94); }
+.da-toggle-controls-btn:active { transform: scale(0.94); }
 .da-controls-row { display: flex; align-items: center; gap: 8px; }
 .da-btn {
   display: flex;
