@@ -23,6 +23,9 @@ export default function PortalLanding() {
           Log In
         </Link>
       </div>
+      <Link to="/portal/plans" className="mt-4 text-xs text-text-muted hover:text-brand hover:underline">
+        View pricing
+      </Link>
     </div>
   );
 }

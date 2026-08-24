@@ -21,11 +21,14 @@ import PortfolioManager from './pages/website/PortfolioManager';
 import PhotoBooks from './pages/website/PhotoBooks';
 import AlbumDetail from './pages/website/AlbumDetail';
 import Customers from './pages/website/Customers';
+import CustomerDetail from './pages/website/CustomerDetail';
+import Plans from './pages/website/Plans';
 import { CustomerAuthProvider, useCustomerAuth } from './portal/CustomerAuthContext';
 import PortalLanding from './portal/pages/Landing';
 import PortalLogin from './portal/pages/Login';
 import PortalSignup from './portal/pages/Signup';
 import PortalDashboard from './portal/pages/Dashboard';
+import PortalPlans from './portal/pages/Plans';
 
 function CustomerProtectedRoutes() {
   const { customer, loading } = useCustomerAuth();
@@ -83,6 +86,8 @@ export default function App() {
             <Route path="/website/photo-books/new" element={<PhotoBooks />} />
             <Route path="/website/photo-books/:id" element={<AlbumDetail />} />
             <Route path="/website/customers" element={<Customers />} />
+            <Route path="/website/customers/:id" element={<CustomerDetail />} />
+            <Route path="/website/plans" element={<Plans />} />
           </Route>
 
           {/* Customer portal - entirely separate auth namespace from the admin app above. */}
@@ -96,6 +101,7 @@ export default function App() {
             <Route path="/portal" element={<PortalLanding />} />
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal/signup" element={<PortalSignup />} />
+            <Route path="/portal/plans" element={<PortalPlans />} />
             <Route element={<CustomerProtectedRoutes />}>
               <Route path="/portal/dashboard" element={<PortalDashboard />} />
             </Route>

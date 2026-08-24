@@ -245,8 +245,64 @@ export interface PhotoBookCustomer {
   lastLoginAt: number | null;
 }
 
+export interface PhotoBookPlan {
+  id: number;
+  name: string;
+  credits: number;
+  durationDays: number;
+  basePricePaise: number;
+  discountPaise: number;
+  finalPricePaise: number;
+  features: string[];
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PackageStatus = 'PENDING' | 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED';
+export type PackageOverrideStatus = 'SUSPENDED' | 'CANCELLED' | 'FORCE_ACTIVE' | null;
+
+export interface PhotoBookPackage {
+  id: number;
+  customer: { id: number; email: string; name: string | null; businessName: string | null } | null;
+  plan: PhotoBookPlan | null;
+  creditsTotal: number;
+  creditsUsed: number;
+  creditsRemaining: number;
+  startsAt: number | null;
+  expiresAt: number | null;
+  computedStatus: PackageStatus;
+  adminOverrideStatus: PackageOverrideStatus;
+  adminOverrideReason: string | null;
+  adminOverrideBy: string | null;
+  adminOverrideAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  auditLog?: { id: number; action: string; before_json: string | null; after_json: string | null; reason: string | null; performed_by: string; created_at: number }[];
+  ledger?: { id: number; type: string; amount: number; balance_after: number; note: string | null; created_at: number }[];
+}
+
+export interface CustomerPackageView {
+  id: number;
+  plan: PhotoBookPlan | null;
+  creditsTotal: number;
+  creditsUsed: number;
+  creditsRemaining: number;
+  startsAt: number | null;
+  expiresAt: number | null;
+  status: PackageStatus | 'SUSPENDED' | 'CANCELLED';
+}
+
 export function formatMoney(n: number): string {
   return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+// Package/plan prices are stored as integer paise (never float rupees) to avoid
+// rounding drift in a payments system - this is the one place that converts
+// for display.
+export function formatPaise(paise: number): string {
+  return formatMoney(paise / 100);
 }
 
 export function formatDate(ts: number | null): string {

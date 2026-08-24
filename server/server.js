@@ -211,6 +211,15 @@ app.post('/api/customer/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// Public pricing page data - deliberately no auth at all, since a logged-out
+// visitor needs to see plans before signing up. Active plans only.
+app.get('/api/customer/plans', (req, res) => {
+  const db = require('./db');
+  const { serializePlan } = require('./routes/photobookPlans');
+  const rows = db.prepare('SELECT * FROM plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at DESC').all();
+  res.json(rows.map(serializePlan));
+});
+
 // ---- API routes ----
 app.use('/api/clients', requireAuth, require('./routes/clients'));
 app.use('/api/invoices', requireAuth, require('./routes/invoices'));
@@ -224,6 +233,9 @@ app.use('/api/webauthn', requireAuth, require('./routes/webauthn'));
 app.use('/api/mail', requireAuth, require('./routes/mail'));
 app.use('/api/website', requireAuth, require('./routes/website'));
 app.use('/api/photobook/customers', requireAuth, require('./routes/photobookCustomers'));
+app.use('/api/photobook/plans', requireAuth, require('./routes/photobookPlans'));
+app.use('/api/photobook/packages', requireAuth, require('./routes/photobookPackages'));
+app.use('/api/customer/packages', requireCustomerAuth, require('./routes/customerPackages'));
 // Uploaded files (template backgrounds, etc.) are served without auth: their filenames are
 // unguessable, and Puppeteer's server-side PDF rendering needs to fetch them without a session cookie.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

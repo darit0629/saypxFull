@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { UserRound, Plus, X } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { UserRound, Plus, X, Package } from 'lucide-react';
 import { api, formatDate, type PhotoBookCustomer } from '../../lib/api';
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<PhotoBookCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -30,12 +32,20 @@ export default function Customers() {
           <h1 className="text-xl font-semibold">Customers</h1>
           <p className="text-sm text-text-muted mt-1">Photographers and businesses who purchase Digital Photo Book packages.</p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg gradient-brand px-3.5 py-2 text-sm font-semibold whitespace-nowrap"
-        >
-          <Plus size={16} /> Add Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/website/plans"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-text-muted hover:bg-white/5 whitespace-nowrap"
+          >
+            <Package size={16} /> Plans
+          </Link>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg gradient-brand px-3.5 py-2 text-sm font-semibold whitespace-nowrap"
+          >
+            <Plus size={16} /> Add Customer
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -64,7 +74,11 @@ export default function Customers() {
             </thead>
             <tbody>
               {customers.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0">
+                <tr
+                  key={c.id}
+                  onClick={() => navigate(`/website/customers/${c.id}`)}
+                  className="border-b border-border last:border-0 cursor-pointer hover:bg-white/5"
+                >
                   <td className="px-4 py-3">
                     <p className="font-medium">{c.businessName || c.name || '—'}</p>
                     {c.businessName && c.name && <p className="text-xs text-text-muted">{c.name}</p>}
@@ -82,7 +96,13 @@ export default function Customers() {
                   </td>
                   <td className="px-4 py-3 text-text-muted">{formatDate(c.createdAt)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => toggleStatus(c)} className="text-xs text-brand hover:underline">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStatus(c);
+                      }}
+                      className="text-xs text-brand hover:underline"
+                    >
                       {c.status === 'ACTIVE' ? 'Disable' : 'Enable'}
                     </button>
                   </td>
