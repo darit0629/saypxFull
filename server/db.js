@@ -150,6 +150,118 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
   CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
   CREATE INDEX IF NOT EXISTS idx_expenses_invoice ON expenses(invoice_id);
+
+  -- ---- Digital Photo Book customer/package/billing system ----
+
+  CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name TEXT,
+    phone TEXT,
+    business_name TEXT,
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    last_login_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    credits INTEGER NOT NULL,
+    duration_days INTEGER NOT NULL,
+    base_price_paise INTEGER NOT NULL,
+    discount_paise INTEGER NOT NULL DEFAULT 0,
+    final_price_paise INTEGER NOT NULL,
+    features_json TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    plan_id INTEGER NOT NULL REFERENCES plans(id),
+    amount_paise INTEGER NOT NULL,
+    razorpay_order_id TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'CREATED' CHECK (status IN ('CREATED','PAID','FAILED','CANCELLED')),
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id),
+    razorpay_payment_id TEXT NOT NULL UNIQUE,
+    razorpay_signature TEXT,
+    status TEXT NOT NULL CHECK (status IN ('CAPTURED','FAILED')),
+    raw_payload_json TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS webhook_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    razorpay_event_id TEXT NOT NULL UNIQUE,
+    event_type TEXT NOT NULL,
+    processed_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  -- computed_status (automated, time+credits based) and admin_override_status
+  -- (manual admin lever) are deliberately two separate columns - the access
+  -- calculation reads both and admin_override_status wins when restrictive.
+  -- Never collapse these into one boolean/status field.
+  CREATE TABLE IF NOT EXISTS packages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    plan_id INTEGER NOT NULL REFERENCES plans(id),
+    order_id INTEGER REFERENCES orders(id),
+    credits_total INTEGER NOT NULL,
+    credits_used INTEGER NOT NULL DEFAULT 0,
+    starts_at INTEGER,
+    expires_at INTEGER,
+    computed_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (computed_status IN ('PENDING','ACTIVE','EXPIRING_SOON','EXPIRED')),
+    admin_override_status TEXT CHECK (admin_override_status IN ('SUSPENDED','CANCELLED','FORCE_ACTIVE')),
+    admin_override_reason TEXT,
+    admin_override_by TEXT,
+    admin_override_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS credit_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_id INTEGER NOT NULL REFERENCES packages(id),
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    type TEXT NOT NULL CHECK (type IN ('PACKAGE_PURCHASE','ALBUM_CREATED','ALBUM_DELETED','CREDIT_REFUND','ADMIN_ADJUSTMENT','PACKAGE_EXPIRY','PACKAGE_RENEWAL')),
+    amount INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    album_id INTEGER,
+    actor_type TEXT NOT NULL CHECK (actor_type IN ('CUSTOMER','ADMIN','SYSTEM')),
+    actor_id TEXT,
+    note TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_package_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_id INTEGER NOT NULL REFERENCES packages(id),
+    action TEXT NOT NULL,
+    before_json TEXT,
+    after_json TEXT,
+    reason TEXT,
+    performed_by TEXT NOT NULL DEFAULT 'admin',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
+  CREATE INDEX IF NOT EXISTS idx_packages_customer ON packages(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_credit_transactions_package ON credit_transactions(package_id);
+  CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_admin_package_audit_log_package ON admin_package_audit_log(package_id);
 `);
 
 // Additive migration: existing dev databases created before the lock-screen feature

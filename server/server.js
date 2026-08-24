@@ -102,6 +102,7 @@ app.use('/api/uploads', requireAuth, require('./routes/uploads'));
 app.use('/api/webauthn', requireAuth, require('./routes/webauthn'));
 app.use('/api/mail', requireAuth, require('./routes/mail'));
 app.use('/api/website', requireAuth, require('./routes/website'));
+app.use('/api/photobook/customers', requireAuth, require('./routes/photobookCustomers'));
 // Uploaded files (template backgrounds, etc.) are served without auth: their filenames are
 // unguessable, and Puppeteer's server-side PDF rendering needs to fetch them without a session cookie.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

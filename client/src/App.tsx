@@ -20,6 +20,7 @@ import MessageView from './pages/mail/MessageView';
 import PortfolioManager from './pages/website/PortfolioManager';
 import PhotoBooks from './pages/website/PhotoBooks';
 import AlbumDetail from './pages/website/AlbumDetail';
+import Customers from './pages/website/Customers';
 
 function ProtectedRoutes() {
   const { authenticated, loading, locked } = useAuth();
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="/website/photo-books" element={<PhotoBooks />} />
             <Route path="/website/photo-books/new" element={<PhotoBooks />} />
             <Route path="/website/photo-books/:id" element={<AlbumDetail />} />
+            <Route path="/website/customers" element={<Customers />} />
           </Route>
         </Routes>
       </AuthProvider>

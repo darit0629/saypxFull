@@ -231,6 +231,20 @@ export interface AlbumPage {
   center_x_pct: number;
 }
 
+export type CustomerStatus = 'ACTIVE' | 'DISABLED';
+
+export interface PhotoBookCustomer {
+  id: number;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  businessName: string | null;
+  status: CustomerStatus;
+  createdAt: number;
+  updatedAt: number;
+  lastLoginAt: number | null;
+}
+
 export function formatMoney(n: number): string {
   return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }

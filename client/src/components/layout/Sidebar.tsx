@@ -16,11 +16,10 @@ import {
   Trash2,
   Image,
   BookImage,
-  Globe,
+  UserRound,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import HelpModal from '../HelpModal';
-import { WEBSITE_BASE } from '../../lib/config';
 
 interface NavItem {
   to: string;
@@ -50,7 +49,7 @@ const MAIL_NAV_ITEMS: NavItem[] = [
 const WEBSITE_NAV_ITEMS: NavItem[] = [
   { to: '/website', label: 'Portfolio', icon: Image, end: true },
   { to: '/website/photo-books', label: 'Photo Books', icon: BookImage },
-  { to: WEBSITE_BASE, label: 'Visit Website', icon: Globe, external: true },
+  { to: '/website/customers', label: 'Customer', icon: UserRound },
 ];
 
 const MODES = [

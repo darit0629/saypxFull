@@ -17,9 +17,8 @@ import {
   Edit3,
   ImagePlus,
   BookImage,
-  Globe,
+  UserRound,
 } from 'lucide-react';
-import { WEBSITE_BASE } from '../../lib/config';
 
 interface NavItem {
   to: string;
@@ -52,7 +51,7 @@ const WEBSITE_ITEMS: NavItem[] = [
   { to: '/website/photo-books', label: 'Photo Books', icon: BookImage },
 ];
 const WEBSITE_RIGHT_ITEMS: NavItem[] = [
-  { to: WEBSITE_BASE, label: 'Visit Site', icon: Globe, external: true },
+  { to: '/website/customers', label: 'Customer', icon: UserRound },
   { to: '/more', label: 'More', icon: MoreHorizontal },
 ];
 
