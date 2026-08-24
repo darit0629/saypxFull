@@ -97,5 +97,16 @@ if (albumCols.includes('back_cover_page_id') && !albumCols.includes('back_cover_
 if (!albumCols.includes('compress_images')) {
   db.exec('ALTER TABLE digital_albums ADD COLUMN compress_images INTEGER NOT NULL DEFAULT 1');
 }
+// customer_id/package_id are purely additive - NULL means "admin/legacy album",
+// structurally indistinguishable from before this column existed. Entitlement
+// state itself lives entirely in the Billing app's own database; these are
+// just traceability references, resolved by application code (no cross-DB FK
+// is possible - Billing and Saypxmain are separate SQLite files/processes).
+if (!albumCols.includes('customer_id')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN customer_id INTEGER');
+}
+if (!albumCols.includes('package_id')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN package_id INTEGER');
+}
 
 module.exports = db;

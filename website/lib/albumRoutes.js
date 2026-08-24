@@ -98,9 +98,13 @@ function buildRouter() {
   const router = express.Router();
 
   router.get('/', (req, res) => {
-    const { status, search, sort } = req.query;
+    const { status, search, sort, customerId } = req.query;
     let sql = 'SELECT * FROM digital_albums WHERE 1=1';
     const params = [];
+    if (customerId) {
+      sql += ' AND customer_id = ?';
+      params.push(customerId);
+    }
     if (status && status !== 'all') {
       sql += ' AND status = ?';
       params.push(status.toUpperCase());
@@ -167,14 +171,14 @@ function buildRouter() {
   });
 
   router.post('/', (req, res) => {
-    const { title, clientName, eventType, eventDate, photographerName, description, pageMode, compressImages } = req.body || {};
+    const { title, clientName, eventType, eventDate, photographerName, description, pageMode, compressImages, customerId, packageId } = req.body || {};
     if (!title || !title.trim()) return res.status(400).json({ error: 'Album name is required' });
 
     const code = uniqueCode();
     const result = db
       .prepare(
-        `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description, public_code, page_mode, compress_images)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description, public_code, page_mode, compress_images, customer_id, package_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title.trim(),
@@ -185,7 +189,9 @@ function buildRouter() {
         description || null,
         code,
         pageMode === 'FULL_SPREAD' ? 'FULL_SPREAD' : 'SINGLE_PAGE',
-        compressImages === false ? 0 : 1
+        compressImages === false ? 0 : 1,
+        customerId || null,
+        packageId || null
       );
 
     logAudit(result.lastInsertRowid, 'album_created', { title });
