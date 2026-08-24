@@ -9,8 +9,6 @@
     loading: document.getElementById('loadingScreen'),
     error: document.getElementById('errorScreen'),
     errorMessage: document.getElementById('errorMessage'),
-    rotatePrompt: document.getElementById('rotatePrompt'),
-    btnRotateScreen: document.getElementById('btnRotateScreen'),
     coverTitle: document.getElementById('coverTitle'),
     openBookBtn: document.getElementById('openBookBtn'),
     viewerRoot: document.getElementById('viewerRoot'),
@@ -111,44 +109,21 @@
 
     els.coverTitle.textContent = state.album.title || '';
 
-    if (needsRotatePrompt()) { show(els.rotatePrompt); return; }
     show(els.viewerRoot);
     initPageFlip();
   }
 
-  function needsRotatePrompt() {
-    return window.innerWidth < window.innerHeight && window.innerWidth < 900;
-  }
+  // Works in both portrait and landscape - no forced rotation. PageFlip's
+  // own usePortrait option switches between single-page (portrait) and
+  // two-page-spread (landscape) layout automatically based on the
+  // container's actual aspect ratio as it resizes/reorients.
   window.addEventListener('resize', function () {
     if (!state.album) return;
-    if (needsRotatePrompt()) { show(els.rotatePrompt); hide(els.viewerRoot); }
-    else {
-      hide(els.rotatePrompt);
-      if (els.viewerRoot.hidden) { show(els.viewerRoot); initPageFlip(); }
-      else resizeStage();
-    }
+    resizeStage();
   });
   window.addEventListener('orientationchange', function () {
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 200);
   });
-
-  // Screen Orientation lock only works inside a fullscreen context on most
-  // Android browsers, and isn't supported at all on iOS Safari - so this is
-  // a nice-to-have shortcut on top of the physical "turn your phone" advice
-  // above it, not a replacement for it. Fails silently either way; the
-  // resize/orientationchange listeners above pick up the change if it works.
-  if (els.btnRotateScreen) {
-    els.btnRotateScreen.addEventListener('click', function () {
-      var root = document.documentElement;
-      var requestFs = root.requestFullscreen || root.webkitRequestFullscreen;
-      var fsPromise = requestFs ? requestFs.call(root).catch(function () {}) : Promise.resolve();
-      fsPromise.then(function () {
-        if (screen.orientation && screen.orientation.lock) {
-          screen.orientation.lock('landscape').catch(function () {});
-        }
-      });
-    });
-  }
 
   // ---- Open book: a real physical flip from the cover, via PageFlip itself ----
   els.openBookBtn.addEventListener('click', function () {
@@ -312,7 +287,7 @@
       maxHeight: 1980,
       maxShadowOpacity: 0.45,
       showCover: state.hasCover,
-      usePortrait: false,
+      usePortrait: true,
       mobileScrollSupport: false,
       swipeDistance: 20,
       drawShadow: true,

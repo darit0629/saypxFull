@@ -63,40 +63,6 @@ html, body {
   50% { opacity: 1; }
 }
 
-/* ---- Rotate prompt ---- */
-.da-rotate-prompt {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: var(--da-bg);
-  text-align: center;
-  padding: 24px;
-}
-.da-rotate-icon { animation: da-rotate-hint 1.8s ease-in-out infinite; color: var(--da-brand); }
-.da-rotate-prompt p { margin: 0; font-size: 16px; font-weight: 600; }
-.da-rotate-sub { font-size: 13px !important; font-weight: 400 !important; color: var(--da-muted); max-width: 280px; }
-.da-rotate-btn {
-  margin-top: 8px;
-  padding: 10px 22px;
-  border: none;
-  border-radius: 999px;
-  background: var(--da-brand);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.da-rotate-btn:active { transform: scale(0.96); }
-@keyframes da-rotate-hint {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(90deg); }
-}
-
 @keyframes da-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---- Open hint (overlaid on the closed book's cover page) ---- */
