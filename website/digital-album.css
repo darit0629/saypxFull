@@ -104,6 +104,19 @@ html, body {
   justify-content: center;
   background: var(--da-bg);
 }
+/* Non-blocking - unlike the old forced full-screen prompt, this is just a
+   small hint text; the viewer stays fully usable in portrait either way. */
+.da-rotate-hint {
+  display: none;
+  margin: 0;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--da-muted);
+}
+@media (orientation: portrait) {
+  .da-rotate-hint { display: block; }
+}
 .da-book-stage {
   position: relative;
   flex: 1;

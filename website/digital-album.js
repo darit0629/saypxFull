@@ -129,6 +129,7 @@
   els.openBookBtn.addEventListener('click', function () {
     state.userInteracted = true;
     hide(els.openBookBtn);
+    hide(els.coverTitle); // was colliding with the bottom controls once the book opened
     if (state.pageFlip && state.hasCover) state.pageFlip.flipNext();
   });
 
@@ -589,6 +590,7 @@
     if (state.pageFlip && state.hasCover) {
       state.pageFlip.turnToPage(0);
       show(els.openBookBtn);
+      show(els.coverTitle);
     }
     hideControls();
   }
