@@ -62,6 +62,56 @@ function requireAuth(req, res, next) {
   return res.status(401).json({ error: 'Not authenticated' });
 }
 
+// ---- Customer (Digital Photo Book) session — separate cookie/namespace from the
+// admin session above. cookie-session always attaches to `req.session`, so this
+// middleware is scoped to only the /api/customer path prefix (never runs on admin
+// routes) and immediately aliases it to `req.customerSession` so route code never
+// has to think about which `req.session` it's looking at.
+app.use(
+  '/api/customer',
+  cookieSession({
+    name: 'saypx_customer_session',
+    keys: [SESSION_SECRET || 'insecure-fallback-secret-change-me'],
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV !== 'development',
+  }),
+  (req, res, next) => {
+    req.customerSession = req.session;
+    next();
+  }
+);
+
+const customerLoginAttempts = new Map();
+function isCustomerLockedOut(ip) {
+  const rec = customerLoginAttempts.get(ip);
+  return rec && rec.lockedUntil && rec.lockedUntil > Date.now();
+}
+function recordFailedCustomerLogin(ip) {
+  const rec = customerLoginAttempts.get(ip) || { count: 0, lockedUntil: 0 };
+  rec.count++;
+  if (rec.count >= 5) {
+    rec.lockedUntil = Date.now() + 10 * 60 * 1000;
+    rec.count = 0;
+  }
+  customerLoginAttempts.set(ip, rec);
+}
+function clearCustomerLoginAttempts(ip) {
+  customerLoginAttempts.delete(ip);
+}
+
+function requireCustomerAuth(req, res, next) {
+  const customerId = req.customerSession && req.customerSession.customerId;
+  if (!customerId) return res.status(401).json({ error: 'Not authenticated' });
+  const db = require('./db');
+  const customer = db.prepare('SELECT id, status FROM customers WHERE id = ?').get(customerId);
+  if (!customer || customer.status !== 'ACTIVE') {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+
 // ---- Auth routes ----
 app.get('/api/auth/me', (req, res) => {
   if (req.session && req.session.authenticated) return res.json({ ok: true });
@@ -86,6 +136,77 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  req.session = null;
+  res.json({ ok: true });
+});
+
+// ---- Customer auth routes (Digital Photo Book portal) ----
+function serializeCustomerSession(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    phone: row.phone,
+    businessName: row.business_name,
+  };
+}
+
+app.get('/api/customer/auth/me', (req, res) => {
+  const customerId = req.customerSession && req.customerSession.customerId;
+  if (!customerId) return res.status(401).json({ error: 'Not authenticated' });
+  const db = require('./db');
+  const row = db.prepare('SELECT * FROM customers WHERE id = ? AND status = ?').get(customerId, 'ACTIVE');
+  if (!row) return res.status(401).json({ error: 'Not authenticated' });
+  res.json(serializeCustomerSession(row));
+});
+
+app.post('/api/customer/auth/signup', (req, res) => {
+  const { email, password, name, phone, businessName } = req.body || {};
+  if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required' });
+  if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  const db = require('./db');
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = db.prepare('SELECT id FROM customers WHERE email = ?').get(normalizedEmail);
+  if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
+
+  const passwordHash = bcrypt.hashSync(password, 10);
+  const result = db
+    .prepare('INSERT INTO customers (email, password_hash, name, phone, business_name) VALUES (?, ?, ?, ?, ?)')
+    .run(normalizedEmail, passwordHash, name || null, phone || null, businessName || null);
+
+  req.customerSession.customerId = result.lastInsertRowid;
+  const row = db.prepare('SELECT * FROM customers WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(serializeCustomerSession(row));
+});
+
+app.post('/api/customer/auth/login', (req, res) => {
+  const ip = req.ip;
+  if (isCustomerLockedOut(ip)) {
+    return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+  }
+  const { email, password } = req.body || {};
+  const db = require('./db');
+  const row = db.prepare('SELECT * FROM customers WHERE email = ?').get((email || '').trim().toLowerCase());
+  const validPass = row && password && bcrypt.compareSync(password, row.password_hash);
+
+  if (row && validPass && row.status === 'ACTIVE') {
+    clearCustomerLoginAttempts(ip);
+    req.customerSession.customerId = row.id;
+    db.prepare('UPDATE customers SET last_login_at = unixepoch() * 1000 WHERE id = ?').run(row.id);
+    return res.json(serializeCustomerSession(row));
+  }
+  if (row && validPass && row.status !== 'ACTIVE') {
+    return res.status(403).json({ error: 'This account has been disabled. Contact SAYPX support.' });
+  }
+  recordFailedCustomerLogin(ip);
+  res.status(401).json({ error: 'Incorrect email or password' });
+});
+
+app.post('/api/customer/auth/logout', (req, res) => {
+  // Must reassign req.session (the real cookie-session getter/setter) - req.customerSession
+  // is a plain aliased property, so setting *it* to null discards our own reference without
+  // ever clearing the actual session cookie.
   req.session = null;
   res.json({ ok: true });
 });

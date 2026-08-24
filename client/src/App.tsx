@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import Login from './pages/Login';
 import LockScreen from './components/LockScreen';
@@ -21,6 +21,18 @@ import PortfolioManager from './pages/website/PortfolioManager';
 import PhotoBooks from './pages/website/PhotoBooks';
 import AlbumDetail from './pages/website/AlbumDetail';
 import Customers from './pages/website/Customers';
+import { CustomerAuthProvider, useCustomerAuth } from './portal/CustomerAuthContext';
+import PortalLanding from './portal/pages/Landing';
+import PortalLogin from './portal/pages/Login';
+import PortalSignup from './portal/pages/Signup';
+import PortalDashboard from './portal/pages/Dashboard';
+
+function CustomerProtectedRoutes() {
+  const { customer, loading } = useCustomerAuth();
+  if (loading) return <div className="min-h-screen bg-bg" />;
+  if (!customer) return <Navigate to="/portal/login" replace />;
+  return <Outlet />;
+}
 
 function ProtectedRoutes() {
   const { authenticated, loading, locked } = useAuth();
@@ -71,6 +83,22 @@ export default function App() {
             <Route path="/website/photo-books/new" element={<PhotoBooks />} />
             <Route path="/website/photo-books/:id" element={<AlbumDetail />} />
             <Route path="/website/customers" element={<Customers />} />
+          </Route>
+
+          {/* Customer portal - entirely separate auth namespace from the admin app above. */}
+          <Route
+            element={
+              <CustomerAuthProvider>
+                <Outlet />
+              </CustomerAuthProvider>
+            }
+          >
+            <Route path="/portal" element={<PortalLanding />} />
+            <Route path="/portal/login" element={<PortalLogin />} />
+            <Route path="/portal/signup" element={<PortalSignup />} />
+            <Route element={<CustomerProtectedRoutes />}>
+              <Route path="/portal/dashboard" element={<PortalDashboard />} />
+            </Route>
           </Route>
         </Routes>
       </AuthProvider>
