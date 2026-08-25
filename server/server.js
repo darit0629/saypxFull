@@ -26,7 +26,11 @@ app.disable('x-powered-by');
 // nginx terminates TLS and proxies over plain HTTP — without this, Express never sees the
 // connection as secure, so the `secure: true` session cookie below silently never gets set.
 app.set('trust proxy', 1);
-app.use(express.json());
+// Captures the raw request body alongside the parsed one - the Razorpay
+// webhook route needs the exact original bytes to verify its HMAC signature
+// (re-serializing req.body would not byte-for-byte match what Razorpay
+// signed). Cheap to do on every request, only actually used by that route.
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(
   cookieSession({
     name: 'saypx_billing_session',
@@ -237,6 +241,10 @@ app.use('/api/photobook/plans', requireAuth, require('./routes/photobookPlans'))
 app.use('/api/photobook/packages', requireAuth, require('./routes/photobookPackages'));
 app.use('/api/customer/packages', requireCustomerAuth, require('./routes/customerPackages'));
 app.use('/api/customer/albums', requireCustomerAuth, require('./routes/customerAlbums'));
+app.use('/api/customer/orders', requireCustomerAuth, require('./routes/customerOrders'));
+// No auth middleware - Razorpay calls this directly with no session/cookie.
+// Protected entirely by HMAC signature verification inside the route itself.
+app.use('/api/webhooks/razorpay', require('./routes/razorpayWebhook'));
 // Uploaded files (template backgrounds, etc.) are served without auth: their filenames are
 // unguessable, and Puppeteer's server-side PDF rendering needs to fetch them without a session cookie.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

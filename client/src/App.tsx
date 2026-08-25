@@ -29,6 +29,7 @@ import PortalLogin from './portal/pages/Login';
 import PortalSignup from './portal/pages/Signup';
 import PortalDashboard from './portal/pages/Dashboard';
 import PortalPlans from './portal/pages/Plans';
+import PortalOrders from './portal/pages/Orders';
 
 function CustomerProtectedRoutes() {
   const { customer, loading } = useCustomerAuth();
@@ -104,6 +105,7 @@ export default function App() {
             <Route path="/portal/plans" element={<PortalPlans />} />
             <Route element={<CustomerProtectedRoutes />}>
               <Route path="/portal/dashboard" element={<PortalDashboard />} />
+              <Route path="/portal/orders" element={<PortalOrders />} />
             </Route>
           </Route>
         </Routes>

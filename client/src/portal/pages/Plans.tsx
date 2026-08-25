@@ -1,17 +1,61 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check } from 'lucide-react';
 import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
+import { openRazorpayCheckout } from '../lib/razorpayCheckout';
 import { formatPaise, type PhotoBookPlan } from '../../lib/api';
+
+interface CreateOrderResponse {
+  orderId: number;
+  razorpayOrderId: string;
+  amountPaise: number;
+  currency: string;
+  keyId: string;
+  planName: string;
+}
 
 export default function PortalPlans() {
   const { customer } = useCustomerAuth();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PhotoBookPlan[] | null>(null);
+  const [buyingPlanId, setBuyingPlanId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     customerApi.get<PhotoBookPlan[]>('/api/customer/plans').then(setPlans);
   }, []);
+
+  async function handleBuy(plan: PhotoBookPlan) {
+    setBuyingPlanId(plan.id);
+    setError(null);
+    try {
+      const order = await customerApi.post<CreateOrderResponse>('/api/customer/orders', { planId: plan.id });
+      await openRazorpayCheckout({
+        key: order.keyId,
+        amount: order.amountPaise,
+        currency: order.currency,
+        name: 'SAYPX Digital Photo Books',
+        description: order.planName,
+        order_id: order.razorpayOrderId,
+        prefill: { email: customer?.email, name: customer?.name || undefined },
+        theme: { color: '#ff5a1f' },
+        handler: async (response) => {
+          try {
+            await customerApi.post(`/api/customer/orders/${order.orderId}/verify`, response);
+            navigate('/portal/dashboard', { replace: true });
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Payment verification failed');
+            setBuyingPlanId(null);
+          }
+        },
+        modal: { ondismiss: () => setBuyingPlanId(null) },
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start checkout');
+      setBuyingPlanId(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-bg px-6 py-10">
@@ -24,6 +68,10 @@ export default function PortalPlans() {
         </Link>
         <h1 className="text-2xl font-semibold mb-1">Choose Your Package</h1>
         <p className="text-sm text-text-muted mb-8">Digital Photo Book album credits, valid for your chosen duration.</p>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-red-300">{error}</div>
+        )}
 
         {plans === null ? (
           <p className="text-sm text-text-muted">Loading…</p>
@@ -54,11 +102,11 @@ export default function PortalPlans() {
                 )}
                 {customer ? (
                   <button
-                    disabled
-                    title="Online checkout is coming soon — contact SAYPX to get this package activated for now."
-                    className="mt-auto block rounded-lg border border-border py-2.5 text-center text-sm font-semibold text-text-muted cursor-not-allowed"
+                    onClick={() => handleBuy(p)}
+                    disabled={buyingPlanId === p.id}
+                    className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold disabled:opacity-60"
                   >
-                    Checkout Coming Soon
+                    {buyingPlanId === p.id ? 'Opening Checkout…' : 'Buy Package'}
                   </button>
                 ) : (
                   <Link

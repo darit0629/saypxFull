@@ -23,7 +23,8 @@
     "mailparser": "^3.9.15",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
-    "puppeteer": "^25.8.0"
+    "puppeteer": "^25.8.0",
+    "razorpay": "^2.9.8"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",

@@ -62,12 +62,26 @@ export default function PortalDashboard() {
           </p>
           <p className="text-xs text-text-muted">{customer?.businessName || customer?.email}</p>
         </div>
-        <button
-          onClick={() => logout()}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
-        >
-          <LogOut size={14} /> Log Out
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/portal/plans"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
+          >
+            Plans
+          </Link>
+          <Link
+            to="/portal/orders"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
+          >
+            Orders
+          </Link>
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
+          >
+            <LogOut size={14} /> Log Out
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10">
