@@ -256,6 +256,15 @@ db.exec(`
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   );
 
+  -- Singleton, same id=1 pattern as business_profile. Currently just the
+  -- EXPIRING_SOON threshold (hardcoded at 7 days before this table existed).
+  CREATE TABLE IF NOT EXISTS photo_book_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    expiring_soon_days INTEGER NOT NULL DEFAULT 7,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
   CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
   CREATE INDEX IF NOT EXISTS idx_packages_customer ON packages(customer_id);

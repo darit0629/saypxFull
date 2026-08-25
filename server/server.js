@@ -239,6 +239,10 @@ app.use('/api/website', requireAuth, require('./routes/website'));
 app.use('/api/photobook/customers', requireAuth, require('./routes/photobookCustomers'));
 app.use('/api/photobook/plans', requireAuth, require('./routes/photobookPlans'));
 app.use('/api/photobook/packages', requireAuth, require('./routes/photobookPackages'));
+app.use('/api/photobook/orders', requireAuth, require('./routes/photobookOrders'));
+app.use('/api/photobook/payments', requireAuth, require('./routes/photobookPayments'));
+app.use('/api/photobook/credits', requireAuth, require('./routes/photobookCredits'));
+app.use('/api/photobook/settings', requireAuth, require('./routes/photobookSettings'));
 app.use('/api/customer/packages', requireCustomerAuth, require('./routes/customerPackages'));
 app.use('/api/customer/albums', requireCustomerAuth, require('./routes/customerAlbums'));
 app.use('/api/customer/orders', requireCustomerAuth, require('./routes/customerOrders'));
@@ -269,4 +273,24 @@ if (isMailConfigured()) {
   setInterval(() => {
     syncFolder('inbox').catch((e) => console.error('Inbox sync failed:', e.message));
   }, INBOX_POLL_MS);
+}
+
+// Proactively recompute package status (ACTIVE/EXPIRING_SOON -> EXPIRED etc)
+// instead of relying only on the lazy recompute-on-read in packageStatus.js -
+// a package nobody happens to view stays stale otherwise. Runs once at boot
+// (catches anything that expired while the server was down) then every 6h.
+{
+  const dbModule = require('./db');
+  const { runExpirySweep } = require('./lib/packageStatus');
+  const EXPIRY_SWEEP_MS = 6 * 60 * 60 * 1000;
+  const sweep = () => {
+    try {
+      const { checked, transitioned } = runExpirySweep(dbModule);
+      if (transitioned > 0) console.log(`Package expiry sweep: ${transitioned}/${checked} package(s) transitioned to EXPIRED`);
+    } catch (e) {
+      console.error('Package expiry sweep failed:', e.message);
+    }
+  };
+  sweep();
+  setInterval(sweep, EXPIRY_SWEEP_MS);
 }

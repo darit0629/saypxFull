@@ -299,6 +299,60 @@ export interface CustomerPackageView {
   status: PackageStatus | 'SUSPENDED' | 'CANCELLED';
 }
 
+export interface PhotoBookOrder {
+  id: number;
+  customer: { id: number; email: string; name: string | null; businessName: string | null } | null;
+  plan: PhotoBookPlan | null;
+  amountPaise: number;
+  razorpayOrderId: string;
+  status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED';
+  createdAt: number;
+  updatedAt: number;
+  payments?: { id: number; razorpayPaymentId: string; status: 'CAPTURED' | 'FAILED'; createdAt: number }[];
+}
+
+export interface PhotoBookPayment {
+  id: number;
+  razorpayPaymentId: string;
+  status: 'CAPTURED' | 'FAILED';
+  createdAt: number;
+  order: {
+    id: number;
+    razorpayOrderId: string;
+    amountPaise: number;
+    status: PhotoBookOrder['status'];
+    customer: { id: number; email: string; name: string | null; businessName: string | null } | null;
+    plan: { id: number; name: string } | null;
+  } | null;
+}
+
+export type CreditTransactionType =
+  | 'PACKAGE_PURCHASE'
+  | 'ALBUM_CREATED'
+  | 'ALBUM_DELETED'
+  | 'CREDIT_REFUND'
+  | 'ADMIN_ADJUSTMENT'
+  | 'PACKAGE_EXPIRY'
+  | 'PACKAGE_RENEWAL';
+
+export interface CreditTransaction {
+  id: number;
+  customer: { id: number; email: string; name: string | null; businessName: string | null } | null;
+  package: { id: number; plan: { id: number; name: string } | null } | null;
+  type: CreditTransactionType;
+  amount: number;
+  balanceAfter: number;
+  actorType: 'CUSTOMER' | 'ADMIN' | 'SYSTEM';
+  actorId: string | null;
+  note: string | null;
+  createdAt: number;
+}
+
+export interface PhotoBookSettings {
+  expiringSoonDays: number;
+  updatedAt: number;
+}
+
 export function formatMoney(n: number): string {
   return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }

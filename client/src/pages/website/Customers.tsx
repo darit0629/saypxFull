@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { UserRound, Plus, X, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UserRound, Plus, X } from 'lucide-react';
 import { api, formatDate, type PhotoBookCustomer } from '../../lib/api';
+import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
 
 export default function Customers() {
   const navigate = useNavigate();
@@ -27,25 +28,19 @@ export default function Customers() {
 
   return (
     <div className="space-y-5">
+      <PhotoBookSubNav />
+
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold">Customers</h1>
           <p className="text-sm text-text-muted mt-1">Photographers and businesses who purchase Digital Photo Book packages.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            to="/website/plans"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-text-muted hover:bg-white/5 whitespace-nowrap"
-          >
-            <Package size={16} /> Plans
-          </Link>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg gradient-brand px-3.5 py-2 text-sm font-semibold whitespace-nowrap"
-          >
-            <Plus size={16} /> Add Customer
-          </button>
-        </div>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg gradient-brand px-3.5 py-2 text-sm font-semibold whitespace-nowrap"
+        >
+          <Plus size={16} /> Add Customer
+        </button>
       </div>
 
       {loading ? (

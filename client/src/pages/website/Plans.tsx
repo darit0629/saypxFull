@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Package, Plus, X } from 'lucide-react';
+import { Package, Plus, X } from 'lucide-react';
 import { api, formatPaise, type PhotoBookPlan } from '../../lib/api';
+import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
 
 export default function Plans() {
   const [plans, setPlans] = useState<PhotoBookPlan[]>([]);
@@ -25,11 +25,10 @@ export default function Plans() {
 
   return (
     <div className="space-y-5">
+      <PhotoBookSubNav />
+
       <div className="flex items-center justify-between gap-2">
         <div>
-          <Link to="/website/customers" className="flex items-center gap-1 text-xs text-text-muted hover:text-text mb-1">
-            <ArrowLeft size={12} /> Customers
-          </Link>
           <h1 className="text-xl font-semibold">Plans</h1>
           <p className="text-sm text-text-muted mt-1">Album packages customers can purchase.</p>
         </div>

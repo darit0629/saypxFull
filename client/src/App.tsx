@@ -23,6 +23,10 @@ import AlbumDetail from './pages/website/AlbumDetail';
 import Customers from './pages/website/Customers';
 import CustomerDetail from './pages/website/CustomerDetail';
 import Plans from './pages/website/Plans';
+import Orders from './pages/website/Orders';
+import Payments from './pages/website/Payments';
+import Credits from './pages/website/Credits';
+import RenewalsSettings from './pages/website/RenewalsSettings';
 import { CustomerAuthProvider, useCustomerAuth } from './portal/CustomerAuthContext';
 import PortalLanding from './portal/pages/Landing';
 import PortalLogin from './portal/pages/Login';
@@ -89,6 +93,10 @@ export default function App() {
             <Route path="/website/customers" element={<Customers />} />
             <Route path="/website/customers/:id" element={<CustomerDetail />} />
             <Route path="/website/plans" element={<Plans />} />
+            <Route path="/website/orders" element={<Orders />} />
+            <Route path="/website/payments" element={<Payments />} />
+            <Route path="/website/credits" element={<Credits />} />
+            <Route path="/website/renewals-settings" element={<RenewalsSettings />} />
           </Route>
 
           {/* Customer portal - entirely separate auth namespace from the admin app above. */}
