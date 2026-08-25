@@ -291,4 +291,101 @@ if (!invoiceColumns.includes('event_location')) {
   db.exec('ALTER TABLE invoices ADD COLUMN event_location TEXT');
 }
 
+// Custom plans: instead of a fixed credits/price, the customer picks a
+// quantity (at least min_credits) and pays quantity * (price_per_credit_paise
+// - discount_per_credit_paise). The original credits/base_price_paise/
+// final_price_paise columns stay NOT NULL, so a custom plan keeps them
+// populated with the "at minimum quantity" figures - existing admin views
+// (Orders/Payments/Credits, card display fallbacks) stay meaningful without
+// needing to special-case plan_type; price_per_credit_paise etc. are the
+// actual source of truth for order calculation.
+const planColumns = db.prepare('PRAGMA table_info(plans)').all().map((c) => c.name);
+if (!planColumns.includes('plan_type')) {
+  db.exec("ALTER TABLE plans ADD COLUMN plan_type TEXT NOT NULL DEFAULT 'FIXED' CHECK (plan_type IN ('FIXED','CUSTOM'))");
+}
+if (!planColumns.includes('min_credits')) {
+  db.exec('ALTER TABLE plans ADD COLUMN min_credits INTEGER');
+}
+if (!planColumns.includes('price_per_credit_paise')) {
+  db.exec('ALTER TABLE plans ADD COLUMN price_per_credit_paise INTEGER');
+}
+if (!planColumns.includes('discount_per_credit_paise')) {
+  db.exec('ALTER TABLE plans ADD COLUMN discount_per_credit_paise INTEGER NOT NULL DEFAULT 0');
+}
+
+// Records exactly how many credits a given order actually paid for - needed
+// once quantity can vary per-order (custom plans); fixed-plan orders just
+// mirror plan.credits here too, so fulfillOrder never has to special-case.
+const orderColumns = db.prepare('PRAGMA table_info(orders)').all().map((c) => c.name);
+if (!orderColumns.includes('credits_purchased')) {
+  db.exec('ALTER TABLE orders ADD COLUMN credits_purchased INTEGER');
+}
+// Which duration tier a FIXED-plan order actually bought (see
+// plans.duration_options_json below) - drives how long the resulting
+// package runs for. NULL falls back to the plan's own duration_days.
+if (!orderColumns.includes('duration_days_purchased')) {
+  db.exec('ALTER TABLE orders ADD COLUMN duration_days_purchased INTEGER');
+}
+
+// FIXED plans can offer extra selectable duration tiers beyond their primary
+// duration_days/base_price_paise/discount_paise (e.g. 3/6/12 months, with a
+// bigger discount the longer the customer commits). Stored as a JSON array
+// of {durationDays, basePricePaise, discountPaise, finalPricePaise} - same
+// column-array convention already used for features_json. Credits stay the
+// plan's fixed credits regardless of which tier is chosen; only price and
+// duration vary. Not used by CUSTOM plans.
+if (!planColumns.includes('duration_options_json')) {
+  db.exec("ALTER TABLE plans ADD COLUMN duration_options_json TEXT NOT NULL DEFAULT '[]'");
+}
+
+// Credit top-ups: a customer with an active package can buy extra credits
+// at an admin-set flat rate without buying a whole new plan cycle - the
+// top-up rides the existing package's current expiry, it never extends it.
+const settingsColumns = db.prepare('PRAGMA table_info(photo_book_settings)').all().map((c) => c.name);
+if (!settingsColumns.includes('topup_price_per_credit_paise')) {
+  db.exec('ALTER TABLE photo_book_settings ADD COLUMN topup_price_per_credit_paise INTEGER');
+}
+
+// order_kind distinguishes a top-up order (adds credits to an existing
+// package, no expiry change) from a normal plan purchase/renewal.
+// package_id records which package a TOPUP order is crediting; NULL for
+// PURCHASE orders (those resolve their package via plan_id + customer_id,
+// same as before).
+if (!orderColumns.includes('order_kind')) {
+  db.exec("ALTER TABLE orders ADD COLUMN order_kind TEXT NOT NULL DEFAULT 'PURCHASE' CHECK (order_kind IN ('PURCHASE','TOPUP'))");
+}
+if (!orderColumns.includes('package_id')) {
+  db.exec('ALTER TABLE orders ADD COLUMN package_id INTEGER REFERENCES packages(id)');
+}
+
+// credit_transactions.type's CHECK constraint was fixed at table-creation
+// time; SQLite can't widen a CHECK via ALTER TABLE, so this recreates the
+// table (rename -> create -> copy -> drop) the one time CREDIT_TOPUP isn't
+// yet an allowed value. Idempotent: checks the live schema text first.
+const creditTxSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'credit_transactions'").get();
+if (creditTxSchema && !creditTxSchema.sql.includes('CREDIT_TOPUP')) {
+  db.transaction(() => {
+    db.exec('ALTER TABLE credit_transactions RENAME TO credit_transactions_old');
+    db.exec(`
+      CREATE TABLE credit_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_id INTEGER NOT NULL REFERENCES packages(id),
+        customer_id INTEGER NOT NULL REFERENCES customers(id),
+        type TEXT NOT NULL CHECK (type IN ('PACKAGE_PURCHASE','ALBUM_CREATED','ALBUM_DELETED','CREDIT_REFUND','ADMIN_ADJUSTMENT','PACKAGE_EXPIRY','PACKAGE_RENEWAL','CREDIT_TOPUP')),
+        amount INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        album_id INTEGER,
+        actor_type TEXT NOT NULL CHECK (actor_type IN ('CUSTOMER','ADMIN','SYSTEM')),
+        actor_id TEXT,
+        note TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+      )
+    `);
+    db.exec('INSERT INTO credit_transactions SELECT * FROM credit_transactions_old');
+    db.exec('DROP TABLE credit_transactions_old');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_credit_transactions_package ON credit_transactions(package_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id)');
+  })();
+}
+
 module.exports = db;

@@ -250,14 +250,28 @@ export interface PhotoBookCustomer {
   lastLoginAt: number | null;
 }
 
+export type PlanType = 'FIXED' | 'CUSTOM';
+
+export interface PlanDurationOption {
+  durationDays: number;
+  basePricePaise: number;
+  discountPaise: number;
+  finalPricePaise: number;
+}
+
 export interface PhotoBookPlan {
   id: number;
   name: string;
+  planType: PlanType;
   credits: number;
   durationDays: number;
   basePricePaise: number;
   discountPaise: number;
   finalPricePaise: number;
+  minCredits: number | null;
+  pricePerCreditPaise: number | null;
+  discountPerCreditPaise: number | null;
+  durationOptions: PlanDurationOption[];
   features: string[];
   isActive: boolean;
   sortOrder: number;
@@ -297,6 +311,7 @@ export interface CustomerPackageView {
   startsAt: number | null;
   expiresAt: number | null;
   status: PackageStatus | 'SUSPENDED' | 'CANCELLED';
+  topupPricePerCreditPaise: number | null;
 }
 
 export interface PhotoBookOrder {
@@ -350,6 +365,7 @@ export interface CreditTransaction {
 
 export interface PhotoBookSettings {
   expiringSoonDays: number;
+  topupPricePerCreditPaise: number | null;
   updatedAt: number;
 }
 

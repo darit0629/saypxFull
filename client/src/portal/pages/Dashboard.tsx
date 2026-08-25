@@ -1,9 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, PackageX, BookImage, Plus, X, Trash2 } from 'lucide-react';
+import { LogOut, PackageX, BookImage, Plus, X, Trash2, Sparkles } from 'lucide-react';
 import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
+import { openRazorpayCheckout } from '../lib/razorpayCheckout';
 import { formatDate, formatPaise, type CustomerPackageView } from '../../lib/api';
+
+interface CreateOrderResponse {
+  orderId: number;
+  razorpayOrderId: string;
+  amountPaise: number;
+  currency: string;
+  keyId: string;
+  planName: string;
+}
 
 interface CustomerAlbum {
   id: number;
@@ -31,6 +41,7 @@ export default function PortalDashboard() {
   const [packages, setPackages] = useState<CustomerPackageView[] | null>(null);
   const [albums, setAlbums] = useState<CustomerAlbum[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
 
   function loadPackages() {
     customerApi.get<CustomerPackageView[]>('/api/customer/packages/current').then(setPackages);
@@ -137,6 +148,15 @@ export default function PortalDashboard() {
             {activePackage.plan && (
               <p className="mt-3 text-xs text-text-muted">Purchased at {formatPaise(activePackage.plan.finalPricePaise)}</p>
             )}
+
+            {activePackage.topupPricePerCreditPaise && (activePackage.status === 'ACTIVE' || activePackage.status === 'EXPIRING_SOON') && (
+              <button
+                onClick={() => setTopUpOpen(true)}
+                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand/40 py-2 text-sm font-semibold text-brand hover:bg-brand/10"
+              >
+                <Sparkles size={14} /> Top Up Credits
+              </button>
+            )}
           </div>
         )}
 
@@ -182,6 +202,20 @@ export default function PortalDashboard() {
           onCreated={() => {
             setCreateOpen(false);
             loadAlbums();
+            loadPackages();
+          }}
+        />
+      )}
+
+      {topUpOpen && activePackage && activePackage.topupPricePerCreditPaise && (
+        <TopUpDialog
+          packageId={activePackage.id}
+          pricePerCreditPaise={activePackage.topupPricePerCreditPaise}
+          customerEmail={customer?.email}
+          customerName={customer?.name || undefined}
+          onClose={() => setTopUpOpen(false)}
+          onDone={() => {
+            setTopUpOpen(false);
             loadPackages();
           }}
         />
@@ -254,6 +288,119 @@ function CreateAlbumDialog({ onClose, onCreated }: { onClose: () => void; onCrea
             {saving ? 'Creating…' : 'Create Album'}
           </button>
           <p className="text-center text-[11px] text-text-muted">Uses 1 album credit from your package.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TopUpDialog({
+  packageId,
+  pricePerCreditPaise,
+  customerEmail,
+  customerName,
+  onClose,
+  onDone,
+}: {
+  packageId: number;
+  pricePerCreditPaise: number;
+  customerEmail?: string;
+  customerName?: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [credits, setCredits] = useState('10');
+  const [error, setError] = useState<string | null>(null);
+  const [buying, setBuying] = useState(false);
+
+  const parsedCredits = parseInt(credits, 10);
+  const quantity = Number.isInteger(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0;
+  const totalPaise = useMemo(() => quantity * pricePerCreditPaise, [quantity, pricePerCreditPaise]);
+
+  async function handleBuy() {
+    if (quantity <= 0) {
+      setError('Enter a positive number of credits');
+      return;
+    }
+    setBuying(true);
+    setError(null);
+    try {
+      const order = await customerApi.post<CreateOrderResponse>('/api/customer/orders', {
+        kind: 'TOPUP',
+        packageId,
+        credits: quantity,
+      });
+      await openRazorpayCheckout({
+        key: order.keyId,
+        amount: order.amountPaise,
+        currency: order.currency,
+        name: 'SAYPX Digital Photo Books',
+        description: order.planName,
+        order_id: order.razorpayOrderId,
+        prefill: { email: customerEmail, name: customerName },
+        theme: { color: '#ff5a1f' },
+        handler: async (response) => {
+          try {
+            await customerApi.post(`/api/customer/orders/${order.orderId}/verify`, response);
+            onDone();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Payment verification failed');
+            setBuying(false);
+          }
+        },
+        modal: { ondismiss: () => setBuying(false) },
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start checkout');
+      setBuying(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-border bg-bg-secondary p-5 sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-semibold">Top Up Credits</p>
+          <button onClick={onClose} aria-label="Close">
+            <X size={18} className="text-text-muted" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs text-text-muted">
+            Extra credits at {formatPaise(pricePerCreditPaise)} each, usable until your package's current expiry - this does
+            not extend it.
+          </p>
+          <div>
+            <label className="block text-[10px] text-text-muted mb-1">Number of Credits</label>
+            <input
+              type="number"
+              min={1}
+              className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <p className="text-sm text-text-muted">
+            Total: <span className="font-semibold text-text">{formatPaise(totalPaise)}</span>
+          </p>
+
+          {error && (
+            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-red-300">{error}</div>
+          )}
+
+          <button
+            onClick={handleBuy}
+            disabled={buying || quantity <= 0}
+            className="w-full rounded-lg gradient-brand py-2.5 text-sm font-semibold disabled:opacity-60"
+          >
+            {buying ? 'Opening Checkout…' : 'Buy Top-Up'}
+          </button>
         </div>
       </div>
     </div>

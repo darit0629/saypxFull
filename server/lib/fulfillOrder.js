@@ -12,6 +12,31 @@ const db = require('../db');
 // references it), returns the existing package instead of creating a
 // duplicate - this is what makes "payment succeeds twice" (client callback
 // AND webhook both firing) safe to call this function from both places.
+// Top-ups only ever add credits to an already-existing package - no new
+// package, no expiry change ("the top-up rides the main plan's time
+// period"). Kept separate from the purchase/renewal path below since the
+// two have almost nothing in common once you strip out "insert a ledger row
+// and mark the order PAID."
+function fulfillTopup(order) {
+  const pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(order.package_id);
+  if (!pkg) throw new Error('Package not found for top-up order');
+  const creditsGranted = order.credits_purchased;
+
+  return db.transaction(() => {
+    db.prepare('UPDATE packages SET credits_total = credits_total + ?, updated_at = unixepoch() * 1000 WHERE id = ?').run(creditsGranted, pkg.id);
+    const updated = db.prepare('SELECT * FROM packages WHERE id = ?').get(pkg.id);
+
+    db.prepare(
+      `INSERT INTO credit_transactions (package_id, customer_id, type, amount, balance_after, actor_type, actor_id, note)
+       VALUES (?, ?, 'CREDIT_TOPUP', ?, ?, 'SYSTEM', 'razorpay', ?)`
+    ).run(pkg.id, order.customer_id, creditsGranted, updated.credits_total - updated.credits_used, `Order #${order.id}, credit top-up`);
+
+    db.prepare("UPDATE orders SET status = 'PAID', updated_at = unixepoch() * 1000 WHERE id = ?").run(order.id);
+
+    return updated;
+  })();
+}
+
 function fulfillOrder(orderId) {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   if (!order) throw new Error('Order not found');
@@ -19,11 +44,25 @@ function fulfillOrder(orderId) {
   const already = db.prepare('SELECT * FROM packages WHERE order_id = ?').get(orderId);
   if (already) return already;
 
+  if (order.order_kind === 'TOPUP') {
+    // A top-up never becomes packages.order_id (that column tracks the
+    // purchase/renewal that created/last-renewed the package, not every
+    // top-up against it), so the idempotency check above can't catch a
+    // double-fulfill here - guard on the order's own status instead.
+    if (order.status === 'PAID') return db.prepare('SELECT * FROM packages WHERE id = ?').get(order.package_id);
+    return fulfillTopup(order);
+  }
+
   const plan = db.prepare('SELECT * FROM plans WHERE id = ?').get(order.plan_id);
   if (!plan) throw new Error('Plan not found for order');
 
-  const durationMs = plan.duration_days * 24 * 60 * 60 * 1000;
+  // Custom plans vary in quantity per order, and a FIXED plan's duration can
+  // vary per order too (duration tiers) - the order itself, not the plan, is
+  // the source of truth for both.
+  const durationDaysGranted = Number.isInteger(order.duration_days_purchased) ? order.duration_days_purchased : plan.duration_days;
+  const durationMs = durationDaysGranted * 24 * 60 * 60 * 1000;
   const now = Date.now();
+  const creditsGranted = Number.isInteger(order.credits_purchased) ? order.credits_purchased : plan.credits;
 
   // Renewal: reuse the customer's existing package for this exact plan if one
   // exists and has no restrictive admin override - extends credits/expiry on
@@ -45,7 +84,7 @@ function fulfillOrder(orderId) {
       db.prepare(
         `UPDATE packages SET credits_total = credits_total + ?, expires_at = ?, order_id = ?, updated_at = unixepoch() * 1000
          WHERE id = ?`
-      ).run(plan.credits, newExpiry, order.id, existing.id);
+      ).run(creditsGranted, newExpiry, order.id, existing.id);
       pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(existing.id);
     } else {
       const insert = db
@@ -53,7 +92,7 @@ function fulfillOrder(orderId) {
           `INSERT INTO packages (customer_id, plan_id, order_id, credits_total, starts_at, expires_at, computed_status)
            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')`
         )
-        .run(order.customer_id, order.plan_id, order.id, plan.credits, now, now + durationMs);
+        .run(order.customer_id, order.plan_id, order.id, creditsGranted, now, now + durationMs);
       pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(insert.lastInsertRowid);
     }
 
@@ -64,7 +103,7 @@ function fulfillOrder(orderId) {
       pkg.id,
       order.customer_id,
       existing ? 'PACKAGE_RENEWAL' : 'PACKAGE_PURCHASE',
-      plan.credits,
+      creditsGranted,
       pkg.credits_total - pkg.credits_used,
       `Order #${order.id}, plan "${plan.name}"`
     );

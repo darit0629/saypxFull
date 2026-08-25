@@ -34,7 +34,10 @@ router.get('/current', (req, res) => {
     .all(customerId)
     .map((r) => refreshPackageStatus(db, r.id));
 
-  res.json(rows.map(serializeForCustomer));
+  const settings = db.prepare('SELECT topup_price_per_credit_paise FROM photo_book_settings WHERE id = 1').get();
+  const topupPricePerCreditPaise = settings ? settings.topup_price_per_credit_paise : null;
+
+  res.json(rows.map((r) => ({ ...serializeForCustomer(r), topupPricePerCreditPaise })));
 });
 
 module.exports = router;
