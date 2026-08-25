@@ -203,6 +203,11 @@ export interface DigitalAlbum {
   view_count: number;
   spread_count: number | null;
   page_count: number;
+  background_music_path: string | null;
+  audio_mode: 'page-flip-sound-only' | 'music-only' | 'both' | 'silent';
+  music_volume: number;
+  music_loop: number;
+  loading_tagline: string | null;
   created_at: number;
   updated_at: number;
   published_at: number | null;

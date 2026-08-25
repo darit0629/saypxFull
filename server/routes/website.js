@@ -20,6 +20,8 @@ const {
   duplicateAlbumPage,
   deleteAlbumPage,
   uploadAlbumCover,
+  uploadAlbumMusic,
+  deleteAlbumMusic,
   setImageCenter,
   getAlbumQr,
 } = require('../lib/websiteProxy');
@@ -34,6 +36,14 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     if (/^image\//.test(file.mimetype) || /^video\//.test(file.mimetype)) return cb(null, true);
     cb(new Error('Only image or video files are allowed'));
+  },
+});
+const uploadAudio = multer({
+  dest: TMP_DIR,
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^audio\//.test(file.mimetype)) return cb(null, true);
+    cb(new Error('Only audio files are allowed'));
   },
 });
 
@@ -200,6 +210,27 @@ router.post('/albums/:id/back-cover', upload.single('file'), async (req, res) =>
     res.status(201).json(result);
   } catch (e) {
     cleanup();
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.post('/albums/:id/music', uploadAudio.single('file'), async (req, res) => {
+  const cleanup = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const result = await uploadAlbumMusic(req.params.id, req.file);
+    cleanup();
+    res.status(201).json(result);
+  } catch (e) {
+    cleanup();
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.delete('/albums/:id/music', async (req, res) => {
+  try {
+    res.json(await deleteAlbumMusic(req.params.id));
+  } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }
 });

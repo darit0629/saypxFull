@@ -4,7 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const QRCode = require('qrcode');
 const db = require('./albumsDb');
-const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlbumDir } = require('./albumProcessing');
+const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlbumDir, ALBUMS_DIR } = require('./albumProcessing');
 
 // The real production domain, per the requirement to never hardcode a fake
 // one - overridable via env for local testing against a different port.
@@ -22,6 +22,17 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     if (/^image\//.test(file.mimetype)) return cb(null, true);
     cb(new Error('Only image files are allowed'));
+  },
+});
+
+// Separate instance for background music - the image multer above only
+// accepts image/* and isn't reusable here.
+const uploadAudio = multer({
+  dest: TMP_DIR,
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^audio\//.test(file.mimetype)) return cb(null, true);
+    cb(new Error('Only audio files are allowed'));
   },
 });
 
@@ -208,6 +219,7 @@ function buildRouter() {
       'bride_name', 'groom_name', 'venue', 'location', 'custom_message',
       'cover_image_id', 'back_cover_image_id', 'allow_download', 'allow_share',
       'sound_enabled', 'watermark_enabled', 'watermark_json', 'status', 'compress_images',
+      'audio_mode', 'music_volume', 'music_loop', 'loading_tagline',
     ];
     const fields = [];
     const params = [];
@@ -468,6 +480,45 @@ function buildRouter() {
   }
   router.post('/:id/cover', upload.single('file'), buildCoverUploadHandler('cover_image_id'));
   router.post('/:id/back-cover', upload.single('file'), buildCoverUploadHandler('back_cover_image_id'));
+
+  // Background music - no original/display/thumbnail triad needed like
+  // images get; just a straight validated file copy under albums/<id>/audio/,
+  // auto-served by the site's existing blanket static mount (same as the
+  // image folders already are).
+  router.post('/:id/music', uploadAudio.single('file'), async (req, res) => {
+    const cleanup = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+    try {
+      const album = db.prepare('SELECT id FROM digital_albums WHERE id = ?').get(req.params.id);
+      if (!album) { cleanup(); return res.status(404).json({ error: 'Album not found' }); }
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+      const audioDir = path.join(ALBUMS_DIR, String(album.id), 'audio');
+      fs.mkdirSync(audioDir, { recursive: true });
+      const ext = path.extname(req.file.originalname) || '.mp3';
+      const filename = `music-${Date.now()}-${crypto.randomInt(1e6)}${ext}`;
+      const destPath = path.join(audioDir, filename);
+      fs.copyFileSync(req.file.path, destPath);
+      cleanup();
+
+      const relPath = `albums/${album.id}/audio/${filename}`;
+      db.prepare('UPDATE digital_albums SET background_music_path = ?, updated_at = ? WHERE id = ?').run(relPath, Date.now(), album.id);
+      logAudit(album.id, 'music_uploaded', { filename });
+      res.status(201).json({ ok: true, path: relPath });
+    } catch (e) {
+      cleanup();
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete('/:id/music', (req, res) => {
+    const album = db.prepare('SELECT background_music_path FROM digital_albums WHERE id = ?').get(req.params.id);
+    if (!album) return res.status(404).json({ error: 'Album not found' });
+    if (album.background_music_path) {
+      fs.unlink(path.join(__dirname, '..', album.background_music_path), () => {});
+    }
+    db.prepare("UPDATE digital_albums SET background_music_path = NULL, updated_at = ? WHERE id = ?").run(Date.now(), req.params.id);
+    res.json({ ok: true });
+  });
 
   // Manual center-fold adjustment for a Full Spread image whose exported
   // canvas is slightly off-center - the image itself is never touched.

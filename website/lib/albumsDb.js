@@ -109,4 +109,27 @@ if (!albumCols.includes('package_id')) {
   db.exec('ALTER TABLE digital_albums ADD COLUMN package_id INTEGER');
 }
 
+// Background music + the 4 audio modes (page-flip-sound-only | music-only |
+// both | silent). music_volume/music_loop only matter once a track exists.
+if (!albumCols.includes('background_music_path')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN background_music_path TEXT');
+}
+// Default 'both' - once a track is uploaded it just plays alongside the
+// page-flip sound with no extra step; the mode selector exists only for an
+// admin who wants to override that (e.g. music-only, or silence it).
+if (!albumCols.includes('audio_mode')) {
+  db.exec("ALTER TABLE digital_albums ADD COLUMN audio_mode TEXT NOT NULL DEFAULT 'both'");
+}
+if (!albumCols.includes('music_volume')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN music_volume REAL NOT NULL DEFAULT 0.5');
+}
+if (!albumCols.includes('music_loop')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN music_loop INTEGER NOT NULL DEFAULT 1');
+}
+// Optional custom tagline shown on the public loading screen; NULL falls
+// back to a rotating set of tasteful defaults chosen client-side.
+if (!albumCols.includes('loading_tagline')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN loading_tagline TEXT');
+}
+
 module.exports = db;

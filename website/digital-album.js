@@ -31,13 +31,27 @@
     btnShare: document.getElementById('btnShare'),
     btnExit: document.getElementById('btnExit'),
     shareSheet: document.getElementById('shareSheet'),
+    loadingCoverWrap: document.getElementById('loadingCoverWrap'),
+    loadingCoverImg: document.getElementById('loadingCoverImg'),
+    loadingTitle: document.getElementById('loadingTitle'),
+    loadingTagline: document.getElementById('loadingTagline'),
+    loadingProgressFill: document.getElementById('loadingProgressFill'),
+    loadingPercent: document.getElementById('loadingPercent'),
   };
+
+  var DEFAULT_TAGLINES = [
+    'Every picture, a memory kept.',
+    'Turning moments into pages.',
+    'Crafted with care, page by page.',
+    'A story worth flipping through.',
+  ];
 
   var state = {
     album: null,
     digitalPages: [],     // flattened: one entry per rendered book page
     pageFlip: null,
     soundOn: true,
+    audioMode: 'page-flip-sound-only',
     zoom: 1,
     panX: 0,
     panY: 0,
@@ -45,6 +59,12 @@
     baseW: 700,
     baseH: 990,
   };
+
+  function setLoadingProgress(pct) {
+    pct = Math.max(0, Math.min(100, Math.round(pct)));
+    if (els.loadingProgressFill) els.loadingProgressFill.style.width = pct + '%';
+    if (els.loadingPercent) els.loadingPercent.textContent = pct + '%';
+  }
 
   function show(el) { el.hidden = false; }
   function hide(el) { el.hidden = true; }
@@ -58,21 +78,65 @@
   }
 
   // ---- Fetch album ----
+  setLoadingProgress(8);
   fetch('/api/public/digital-albums/' + encodeURIComponent(code))
     .then(function (res) {
+      setLoadingProgress(25);
       if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Album not found'); });
       return res.json();
     })
     .then(function (data) {
       state.album = data;
+      state.soundOn = data.soundEnabled !== false;
+      state.audioMode = data.audioMode || 'page-flip-sound-only';
+      setLoadingProgress(35);
+
+      if (els.loadingTitle) els.loadingTitle.textContent = data.title || '';
+      if (els.loadingTagline) {
+        els.loadingTagline.textContent = data.loadingTagline || DEFAULT_TAGLINES[Math.floor(Math.random() * DEFAULT_TAGLINES.length)];
+      }
+
       buildDigitalPages(data);
-      setTimeout(function () { onReady(); }, 500); // small min display time for the loading screen
+
+      if (state.digitalPages.length === 0) {
+        hide(els.loading);
+        els.errorMessage.textContent = 'This album has no pages yet.';
+        show(els.error);
+        return;
+      }
+
+      loadCoverPreview().then(function () {
+        setLoadingProgress(70);
+        onReady();
+      });
     })
     .catch(function (err) {
       hide(els.loading);
       els.errorMessage.textContent = err.message || 'This digital album is currently unavailable.';
       show(els.error);
     });
+
+  // Warms the cover image in before the book is built, so the loading
+  // screen's blur-to-sharp reveal has something real to show progress
+  // against instead of a generic spinner.
+  function loadCoverPreview() {
+    return new Promise(function (resolve) {
+      var first = state.digitalPages[0];
+      var coverUrl = (first && first.isCover) ? first.src : null;
+      if (!coverUrl || !els.loadingCoverImg) return resolve();
+      show(els.loadingCoverWrap);
+      var img = new Image();
+      var done = function () {
+        els.loadingCoverImg.src = coverUrl;
+        requestAnimationFrame(function () { els.loadingCoverImg.classList.add('da-loading-sharp'); });
+        setLoadingProgress(55);
+        resolve();
+      };
+      img.onload = done;
+      img.onerror = done;
+      img.src = coverUrl;
+    });
+  }
 
   // Flattens the API's pages[] (one entry per uploaded file) into one entry
   // per RENDERED digital page - a FULL_SPREAD upload becomes two entries
@@ -99,18 +163,19 @@
   }
 
   function onReady() {
-    hide(els.loading);
-
-    if (state.digitalPages.length === 0) {
-      els.errorMessage.textContent = 'This album has no pages yet.';
-      show(els.error);
-      return;
-    }
-
     els.coverTitle.textContent = state.album.title || '';
-
+    els.soundOnIcon.hidden = !state.soundOn;
+    els.soundOffIcon.hidden = state.soundOn;
     show(els.viewerRoot);
     initPageFlip();
+    setLoadingProgress(90);
+    initBackgroundMusic();
+    setLoadingProgress(100);
+
+    setTimeout(function () {
+      els.loading.classList.add('da-loading-out');
+      setTimeout(function () { hide(els.loading); }, 650);
+    }, 200);
   }
 
   // Works in both portrait and landscape - no forced rotation. PageFlip's
@@ -494,6 +559,7 @@
   }
   function playPageTurnSound() {
     if (!state.soundOn || !state.userInteracted) return;
+    if (state.audioMode === 'music-only' || state.audioMode === 'silent') return;
     var el = soundPool[soundPoolIdx];
     soundPoolIdx = (soundPoolIdx + 1) % soundPool.length;
     try {
@@ -502,10 +568,37 @@
       if (p && p.catch) p.catch(function () { /* autoplay-restricted or file missing - fail silently */ });
     } catch (e) { /* ignore */ }
   }
+
+  // ---- Background music: one dedicated looping instance, separate from the
+  // one-shot page-turn pool above. Only created when the album actually has
+  // a track and its audio_mode allows music. ----
+  var bgMusic = null;
+  function initBackgroundMusic() {
+    var album = state.album;
+    if (!album || !album.musicUrl) return;
+    if (state.audioMode !== 'music-only' && state.audioMode !== 'both') return;
+    bgMusic = new Audio(abs(album.musicUrl));
+    bgMusic.loop = album.musicLoop !== false;
+    bgMusic.volume = typeof album.musicVolume === 'number' ? album.musicVolume : 0.5;
+    bgMusic.preload = 'auto';
+    tryPlayBackgroundMusic();
+  }
+  function tryPlayBackgroundMusic() {
+    if (!bgMusic || !state.soundOn || !state.userInteracted) return;
+    if (state.audioMode !== 'music-only' && state.audioMode !== 'both') return;
+    var p = bgMusic.play();
+    if (p && p.catch) p.catch(function () { /* autoplay-restricted - retried on next interaction */ });
+  }
+  function stopBackgroundMusic() {
+    if (bgMusic) bgMusic.pause();
+  }
+
   els.btnSound.addEventListener('click', function () {
     state.soundOn = !state.soundOn;
     els.soundOnIcon.hidden = !state.soundOn;
     els.soundOffIcon.hidden = state.soundOn;
+    if (state.soundOn) tryPlayBackgroundMusic();
+    else stopBackgroundMusic();
     markInteracted();
   });
 
@@ -551,7 +644,11 @@
     els.controls.classList.add('da-hidden');
     els.btnToggleControls.classList.remove('da-open');
   }
-  function markInteracted() { state.userInteracted = true; }
+  function markInteracted() {
+    var wasInteracted = state.userInteracted;
+    state.userInteracted = true;
+    if (!wasInteracted) tryPlayBackgroundMusic();
+  }
 
   els.btnToggleControls.addEventListener('click', function () {
     markInteracted();

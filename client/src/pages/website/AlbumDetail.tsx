@@ -1,9 +1,152 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Copy, Check, Download, ExternalLink } from 'lucide-react';
-import { api, type DigitalAlbum } from '../../lib/api';
+import { ArrowLeft, Trash2, Copy, Check, Download, ExternalLink, Upload, X } from 'lucide-react';
+import { api, apiUpload, type DigitalAlbum } from '../../lib/api';
+import { WEBSITE_BASE } from '../../lib/config';
 import PageManager from '../../components/website/PageManager';
 import CoverPicker from '../../components/website/CoverPicker';
+
+const AUDIO_MODES: { value: DigitalAlbum['audio_mode']; label: string }[] = [
+  { value: 'page-flip-sound-only', label: 'Page-flip sound only' },
+  { value: 'music-only', label: 'Background music only' },
+  { value: 'both', label: 'Both page-flip sound and music' },
+  { value: 'silent', label: 'Silent' },
+];
+
+function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: () => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tagline, setTagline] = useState(album.loading_tagline || '');
+  useEffect(() => setTagline(album.loading_tagline || ''), [album.id, album.loading_tagline]);
+
+  async function uploadMusic(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', files[0]);
+      await apiUpload(`/api/website/albums/${album.id}/music`, formData);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload music');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeMusic() {
+    if (!confirm('Remove the background music track?')) return;
+    await api.delete(`/api/website/albums/${album.id}/music`);
+    onChange();
+  }
+
+  // The Saypxmain PATCH route maps camelCase body keys to snake_case
+  // columns by hand (matching CoverPicker's coverImageId/backCoverImageId
+  // convention) - it does NOT accept the snake_case keys the GET response
+  // itself uses, so this must not be typed as Partial<DigitalAlbum>.
+  async function patch(fields: {
+    audioMode?: DigitalAlbum['audio_mode'];
+    musicVolume?: number;
+    musicLoop?: 0 | 1;
+    loadingTagline?: string | null;
+  }) {
+    setError(null);
+    try {
+      await api.patch(`/api/website/albums/${album.id}`, fields);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save');
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
+      <p className="text-sm font-medium">Audio & Extras</p>
+      {error && <p className="text-xs text-danger">{error}</p>}
+
+      <div>
+        <p className="text-[10px] text-text-muted uppercase mb-1.5">Background Music</p>
+        {album.background_music_path ? (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <audio controls src={`${WEBSITE_BASE}/${album.background_music_path}`} className="h-9 max-w-xs" />
+            <button
+              onClick={removeMusic}
+              className="flex items-center gap-1.5 self-start rounded-lg border border-danger/40 px-3 py-1.5 text-xs text-danger"
+            >
+              <X size={13} /> Remove
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-text-muted disabled:opacity-50"
+          >
+            <Upload size={14} /> {uploading ? 'Uploading…' : 'Upload a music track'}
+          </button>
+        )}
+        <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={(e) => uploadMusic(e.target.files)} />
+      </div>
+
+      <div>
+        <p className="text-[10px] text-text-muted uppercase mb-1.5">Audio Mode</p>
+        <select
+          value={album.audio_mode}
+          onChange={(e) => patch({ audioMode: e.target.value as DigitalAlbum['audio_mode'] })}
+          className="w-full max-w-xs rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+        >
+          {AUDIO_MODES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-6">
+        <div className="flex-1 max-w-xs">
+          <p className="text-[10px] text-text-muted uppercase mb-1.5">Music Volume — {Math.round(album.music_volume * 100)}%</p>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            defaultValue={album.music_volume}
+            onMouseUp={(e) => patch({ musicVolume: Number((e.target as HTMLInputElement).value) })}
+            onTouchEnd={(e) => patch({ musicVolume: Number((e.target as HTMLInputElement).value) })}
+            className="w-full"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={!!album.music_loop}
+            onChange={(e) => patch({ musicLoop: e.target.checked ? 1 : 0 })}
+          />
+          Loop music
+        </label>
+      </div>
+
+      <div>
+        <p className="text-[10px] text-text-muted uppercase mb-1.5">Loading Screen Tagline</p>
+        <div className="flex gap-2 max-w-md">
+          <input
+            value={tagline}
+            onChange={(e) => setTagline(e.target.value)}
+            placeholder="Leave blank for a default tagline"
+            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => patch({ loadingTagline: tagline.trim() || null })}
+            className="rounded-lg border border-border px-3 py-2 text-sm shrink-0"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-white/10 text-text-muted',
@@ -200,7 +343,7 @@ export default function AlbumDetail() {
         <PageManager albumId={album.id} pages={album.pages || []} pageMode={album.page_mode} onChange={load} />
       </div>
 
-      <p className="text-xs text-text-muted">The public digital book viewer itself is built in the next phase.</p>
+      <AudioAndExtras album={album} onChange={load} />
     </div>
   );
 }

@@ -10,8 +10,16 @@
 <body>
 
 <div id="loadingScreen" class="da-loading">
-  <div class="da-loading-logo">SAYPX</div>
-  <div class="da-loading-text">Preparing your digital album…</div>
+  <div class="da-loading-brand">SAYPX</div>
+  <div id="loadingCoverWrap" class="da-loading-cover-wrap" hidden>
+    <img id="loadingCoverImg" class="da-loading-cover-img" alt="">
+  </div>
+  <p id="loadingTitle" class="da-loading-title"></p>
+  <p id="loadingTagline" class="da-loading-tagline"></p>
+  <div class="da-loading-progress-track">
+    <div id="loadingProgressFill" class="da-loading-progress-fill"></div>
+  </div>
+  <p id="loadingPercent" class="da-loading-percent">0%</p>
 </div>
 
 <div id="errorScreen" class="da-error" hidden>
