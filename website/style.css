@@ -1144,6 +1144,24 @@ img {
   color: var(--color-primary);
 }
 
+/* Links to a different app entirely (billing.saypx.in), not a same-page
+   scroll anchor - a small outline pill makes that distinction visible
+   instead of blending in with the Home/About/etc scroll-spy links. */
+.nav-link-portal {
+  padding: var(--space-6) var(--space-16);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.nav-link-portal::after {
+  display: none;
+}
+
+.nav-link-portal:hover {
+  background-color: rgba(255, 107, 53, 0.15);
+}
+
 .nav-toggle {
   display: none;
   flex-direction: column;

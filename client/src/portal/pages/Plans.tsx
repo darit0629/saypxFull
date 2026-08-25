@@ -58,7 +58,7 @@ export default function PortalPlans() {
   }
 
   return (
-    <div className="min-h-screen bg-bg px-6 py-10">
+    <div className="relative z-10 min-h-screen px-6 py-10">
       <div className="mx-auto max-w-4xl">
         <Link
           to={customer ? '/portal/dashboard' : '/portal'}

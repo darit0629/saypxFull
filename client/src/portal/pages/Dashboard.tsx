@@ -54,7 +54,7 @@ export default function PortalDashboard() {
   const activePackage = packages?.find((p) => p.status === 'ACTIVE' || p.status === 'EXPIRING_SOON' || p.status === 'PENDING');
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="relative z-10 min-h-screen">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <div>
           <p className="text-lg font-semibold bg-gradient-to-r from-brand to-orange-300 bg-clip-text text-transparent">

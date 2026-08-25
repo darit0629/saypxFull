@@ -24,7 +24,7 @@ export default function PortalLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-bg">
+    <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-secondary p-8">
         <h1 className="text-2xl font-semibold mb-1 bg-gradient-to-r from-brand to-orange-300 bg-clip-text text-transparent">
           SAYPX Digital Photo Books

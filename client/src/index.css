@@ -42,3 +42,64 @@ body {
     min-height: 40px;
   }
 }
+
+/* Customer portal animated background - mirrors the floating-orb hero
+   effect on the main saypx.in marketing site (style.css: .hero-orb /
+   float-orb) so the portal reads as the same brand, not a bare admin tool. */
+@keyframes portal-orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -24px, 0) scale(1.06); }
+}
+@keyframes portal-orb-float-alt {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, 20px, 0) scale(0.94); }
+}
+.portal-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+.portal-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 87, 34, 0.1), transparent 60%);
+}
+.portal-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.portal-orb-1 {
+  width: 440px;
+  height: 440px;
+  top: -12%;
+  left: -10%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 138, 76, 0.55), rgba(255, 107, 53, 0) 70%);
+  animation: portal-orb-float 12s ease-in-out infinite;
+}
+.portal-orb-2 {
+  width: 340px;
+  height: 340px;
+  top: 55%;
+  right: -8%;
+  background: radial-gradient(circle at 30% 30%, rgba(244, 67, 54, 0.45), rgba(244, 67, 54, 0) 70%);
+  animation: portal-orb-float-alt 14s ease-in-out infinite;
+}
+.portal-orb-3 {
+  width: 280px;
+  height: 280px;
+  bottom: -10%;
+  left: 22%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 193, 138, 0.4), rgba(255, 193, 138, 0) 70%);
+  animation: portal-orb-float 10s ease-in-out infinite reverse;
+}
+@media (max-width: 767px) {
+  .portal-orb {
+    opacity: 0.35;
+  }
+}

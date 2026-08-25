@@ -27,7 +27,7 @@ export default function PortalOrders() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-bg px-6 py-10">
+    <div className="relative z-10 min-h-screen px-6 py-10">
       <div className="mx-auto max-w-2xl">
         <Link to="/portal/dashboard" className="flex items-center gap-1 text-xs text-text-muted hover:text-text mb-4">
           <ArrowLeft size={12} /> Dashboard

@@ -28,6 +28,7 @@ import Payments from './pages/website/Payments';
 import Credits from './pages/website/Credits';
 import RenewalsSettings from './pages/website/RenewalsSettings';
 import { CustomerAuthProvider, useCustomerAuth } from './portal/CustomerAuthContext';
+import PortalBackground from './portal/components/PortalBackground';
 import PortalLanding from './portal/pages/Landing';
 import PortalLogin from './portal/pages/Login';
 import PortalSignup from './portal/pages/Signup';
@@ -103,6 +104,7 @@ export default function App() {
           <Route
             element={
               <CustomerAuthProvider>
+                <PortalBackground />
                 <Outlet />
               </CustomerAuthProvider>
             }

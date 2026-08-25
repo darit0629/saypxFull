@@ -3,7 +3,7 @@ import { BookImage } from 'lucide-react';
 
 export default function PortalLanding() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center bg-bg">
+    <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 text-center">
       <BookImage size={40} className="mb-4 text-brand" />
       <h1 className="text-3xl font-semibold mb-2 bg-gradient-to-r from-brand to-orange-300 bg-clip-text text-transparent">
         SAYPX Digital Photo Books
