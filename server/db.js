@@ -312,6 +312,23 @@ if (!planColumns.includes('price_per_credit_paise')) {
 if (!planColumns.includes('discount_per_credit_paise')) {
   db.exec('ALTER TABLE plans ADD COLUMN discount_per_credit_paise INTEGER NOT NULL DEFAULT 0');
 }
+// Upper bound on how many credits a customer can buy in one CUSTOM-plan
+// purchase - NULL means no cap. Keeps a "Custom Plan" from being usable as
+// an unbounded backdoor around the Enterprise tier.
+if (!planColumns.includes('max_credits')) {
+  db.exec('ALTER TABLE plans ADD COLUMN max_credits INTEGER');
+}
+// CUSTOM plans: instead of one flat discount_per_credit_paise regardless of
+// duration, the customer also picks a duration, and each duration carries
+// its own percentage discount off (credits * price_per_credit_paise) - e.g.
+// 6 months/1 year at 0%, 2 years at 10%, 5 years at 30%. Stored as a JSON
+// array of {durationDays, discountPercent}, same array-column convention as
+// duration_options_json (FIXED plans) - structurally different shape
+// (percent, not an independent final price) so it gets its own column
+// rather than overloading that one.
+if (!planColumns.includes('custom_duration_options_json')) {
+  db.exec("ALTER TABLE plans ADD COLUMN custom_duration_options_json TEXT NOT NULL DEFAULT '[]'");
+}
 
 // Records exactly how many credits a given order actually paid for - needed
 // once quantity can vary per-order (custom plans); fixed-plan orders just

@@ -30,8 +30,12 @@ export default function PortalPlans() {
       const defaultCredits: Record<number, string> = {};
       const defaultDuration: Record<number, number> = {};
       data.forEach((p) => {
-        if (p.planType === 'CUSTOM' && p.minCredits) defaultCredits[p.id] = String(p.minCredits);
-        else defaultDuration[p.id] = p.durationDays;
+        if (p.planType === 'CUSTOM') {
+          if (p.minCredits) defaultCredits[p.id] = String(p.minCredits);
+          defaultDuration[p.id] = p.customDurationOptions[0]?.durationDays ?? p.durationDays;
+        } else {
+          defaultDuration[p.id] = p.durationDays;
+        }
       });
       setCustomCredits(defaultCredits);
       setSelectedDuration(defaultDuration);
@@ -46,11 +50,17 @@ export default function PortalPlans() {
       if (plan.planType === 'CUSTOM') {
         const credits = parseInt(customCredits[plan.id] || '', 10);
         if (!Number.isInteger(credits) || credits < (plan.minCredits || 1)) {
-          setError(`Choose at least ${plan.minCredits} credits`);
+          setError(`Choose at least ${plan.minCredits} albums`);
+          setBuyingPlanId(null);
+          return;
+        }
+        if (plan.maxCredits && credits > plan.maxCredits) {
+          setError(`Choose at most ${plan.maxCredits} albums`);
           setBuyingPlanId(null);
           return;
         }
         body.credits = credits;
+        body.durationDays = selectedDuration[plan.id] ?? plan.durationDays;
       } else {
         body.durationDays = selectedDuration[plan.id] ?? plan.durationDays;
       }
@@ -110,6 +120,8 @@ export default function PortalPlans() {
                   plan={p}
                   credits={customCredits[p.id] ?? String(p.minCredits ?? '')}
                   onCreditsChange={(v) => setCustomCredits((c) => ({ ...c, [p.id]: v }))}
+                  selectedDuration={selectedDuration[p.id] ?? p.durationDays}
+                  onDurationChange={(d) => setSelectedDuration((s) => ({ ...s, [p.id]: d }))}
                   loggedIn={!!customer}
                   buying={buyingPlanId === p.id}
                   onBuy={() => handleBuy(p)}
@@ -266,6 +278,8 @@ function CustomPlanCard({
   plan,
   credits,
   onCreditsChange,
+  selectedDuration,
+  onDurationChange,
   loggedIn,
   buying,
   onBuy,
@@ -273,32 +287,37 @@ function CustomPlanCard({
   plan: PhotoBookPlan;
   credits: string;
   onCreditsChange: (v: string) => void;
+  selectedDuration: number;
+  onDurationChange: (d: number) => void;
   loggedIn: boolean;
   buying: boolean;
   onBuy: () => void;
 }) {
   const min = plan.minCredits || 1;
-  const effectivePerCredit = Math.max(0, (plan.pricePerCreditPaise || 0) - (plan.discountPerCreditPaise || 0));
+  const max = plan.maxCredits;
+  const pricePerAlbum = plan.pricePerCreditPaise || 0;
+  const durations = plan.customDurationOptions.length > 0 ? plan.customDurationOptions : [{ durationDays: plan.durationDays, discountPercent: 0 }];
+  const activeDuration = durations.find((d) => d.durationDays === selectedDuration) || durations[0];
+
   const parsedCredits = parseInt(credits, 10);
   const quantity = Number.isInteger(parsedCredits) && parsedCredits > 0 ? parsedCredits : min;
-  const totalPaise = useMemo(() => quantity * effectivePerCredit, [quantity, effectivePerCredit]);
+  const basePaise = useMemo(() => quantity * pricePerAlbum, [quantity, pricePerAlbum]);
+  const discountPaise = useMemo(() => Math.round((basePaise * activeDuration.discountPercent) / 100), [basePaise, activeDuration]);
+  const finalPaise = basePaise - discountPaise;
+
   const belowMin = Number.isInteger(parsedCredits) && parsedCredits < min;
+  const aboveMax = Number.isInteger(parsedCredits) && !!max && parsedCredits > max;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 flex flex-col">
-      <p className="text-lg font-semibold mb-1">{plan.name}</p>
-      <div className="mb-1">
-        <span className="text-3xl font-bold">{formatPaise(effectivePerCredit)}</span>
-        <span className="text-sm text-text-muted"> / credit</span>
-        {(plan.discountPerCreditPaise || 0) > 0 && (
-          <span className="ml-2 text-sm text-text-muted line-through">{formatPaise(plan.pricePerCreditPaise || 0)}</span>
-        )}
-      </div>
-      <p className="text-xs text-text-muted mb-4">
-        Minimum {min} credits · {formatDuration(plan.durationDays)}
+      <p className="text-lg font-semibold mb-1">Build Your Own Plan</p>
+      <p className="text-sm text-text-muted mb-4">
+        <span className="font-semibold text-text">{formatPaise(pricePerAlbum)}</span> per album
+        {plan.name && plan.name !== 'Build Your Own Plan' ? ` · ${plan.name}` : ''}
       </p>
+
       {plan.features.length > 0 && (
-        <ul className="space-y-1.5 mb-4 flex-1">
+        <ul className="space-y-1.5 mb-4">
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-1.5 text-xs text-text-muted">
               <Check size={13} className="mt-0.5 shrink-0 text-brand" /> {f}
@@ -307,27 +326,70 @@ function CustomPlanCard({
         </ul>
       )}
 
-      <label className="block text-[10px] text-text-muted uppercase mb-1">Number of Credits</label>
+      <label className="block text-[10px] text-text-muted uppercase mb-1">How many albums do you need?</label>
       <input
         type="number"
         min={min}
+        max={max ?? undefined}
         value={credits}
         onChange={(e) => onCreditsChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm mb-2"
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm mb-1"
       />
-      {belowMin && <p className="text-xs text-danger mb-2">Minimum {min} credits for this plan.</p>}
+      <p className="text-[10px] text-text-muted mb-3">
+        {min}{max ? ` – ${max}` : '+'} albums
+      </p>
+      {belowMin && <p className="text-xs text-danger mb-2">Minimum {min} albums for this plan.</p>}
+      {aboveMax && <p className="text-xs text-danger mb-2">Maximum {max} albums for this plan.</p>}
 
-      <p className="text-sm text-text-muted mb-4">
-        Total: <span className="font-semibold text-text">{formatPaise(totalPaise)}</span>
+      {durations.length > 1 ? (
+        <>
+          <label className="block text-[10px] text-text-muted uppercase mb-1.5">How long do you need them?</label>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {durations.map((d) => (
+              <button
+                key={d.durationDays}
+                onClick={() => onDurationChange(d.durationDays)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
+                  d.durationDays === activeDuration.durationDays
+                    ? 'border-brand bg-brand/15 text-brand'
+                    : 'border-border text-text-muted hover:bg-white/5'
+                }`}
+              >
+                {formatDuration(d.durationDays)}
+                {d.discountPercent > 0 ? ` · ${d.discountPercent}% off` : ''}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-text-muted mb-3">Valid for {formatDuration(activeDuration.durationDays)}</p>
+      )}
+
+      <div className="rounded-lg bg-white/5 p-3 mb-2 text-xs space-y-0.5">
+        <p>
+          {quantity.toLocaleString('en-IN')} Albums × {formatPaise(pricePerAlbum)} ={' '}
+          <span className="font-semibold text-text">{formatPaise(basePaise)}</span>
+        </p>
+        {activeDuration.discountPercent > 0 && (
+          <p>
+            Duration Discount: <span className="font-semibold text-emerald-400">{activeDuration.discountPercent}% (−{formatPaise(discountPaise)})</span>
+          </p>
+        )}
+        <p className="pt-1 border-t border-border/60 mt-1">
+          You Pay: <span className="font-semibold text-text">{formatPaise(finalPaise)}</span>
+        </p>
+      </div>
+      <p className="text-[10px] text-text-muted mb-4">
+        You get exactly {quantity.toLocaleString('en-IN')} album credits, whichever duration you pick.
       </p>
 
       {loggedIn ? (
         <button
           onClick={onBuy}
-          disabled={buying || belowMin}
+          disabled={buying || belowMin || aboveMax}
           className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold disabled:opacity-60"
         >
-          {buying ? 'Opening Checkout…' : 'Buy Package'}
+          {buying ? 'Opening Checkout…' : 'Continue to Payment'}
         </button>
       ) : (
         <Link to="/album/signup" className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold">

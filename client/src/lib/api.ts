@@ -268,6 +268,15 @@ export interface PlanDurationOption {
   finalPricePaise: number;
 }
 
+// CUSTOM plans: the customer picks a duration (in addition to a quantity)
+// and each duration carries its own percentage discount off
+// (credits * pricePerCreditPaise) - no separate base/final price per option
+// like FIXED tiers, since quantity is variable here.
+export interface CustomDurationOption {
+  durationDays: number;
+  discountPercent: number;
+}
+
 export interface PhotoBookPlan {
   id: number;
   name: string;
@@ -278,8 +287,10 @@ export interface PhotoBookPlan {
   discountPaise: number;
   finalPricePaise: number;
   minCredits: number | null;
+  maxCredits: number | null;
   pricePerCreditPaise: number | null;
   discountPerCreditPaise: number | null;
+  customDurationOptions: CustomDurationOption[];
   durationOptions: PlanDurationOption[];
   features: string[];
   isActive: boolean;

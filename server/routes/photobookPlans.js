@@ -14,8 +14,10 @@ function serializePlan(row) {
     discountPaise: row.discount_paise,
     finalPricePaise: row.final_price_paise,
     minCredits: row.min_credits,
+    maxCredits: row.max_credits,
     pricePerCreditPaise: row.price_per_credit_paise,
     discountPerCreditPaise: row.discount_per_credit_paise,
+    customDurationOptions: JSON.parse(row.custom_duration_options_json || '[]'),
     durationOptions: JSON.parse(row.duration_options_json || '[]'),
     features: JSON.parse(row.features_json || '[]'),
     isActive: !!row.is_active,
@@ -85,15 +87,34 @@ function restampDurationOptions(existingJson, parentCredits, parentBasePricePais
   });
 }
 
+// CUSTOM plan duration options: the customer picks BOTH a quantity and a
+// duration; each duration carries its own percentage discount off
+// (credits * pricePerCreditPaise) - e.g. 6mo/1yr at 0%, 2yr at 10%, 5yr at
+// 30%. No quantity-based volume discount - kept deliberately simple per the
+// explicit "don't make the first version too complicated" direction.
+function validateCustomDurationOptions(raw) {
+  if (raw === undefined) return undefined; // caller keeps existing value
+  if (!Array.isArray(raw)) throw new Error('customDurationOptions must be an array');
+  return raw.map((opt) => {
+    const durationDays = opt && opt.durationDays;
+    const discountPercent = opt && opt.discountPercent;
+    if (!Number.isInteger(durationDays) || durationDays <= 0) throw new Error('Each duration option needs a positive whole number of days');
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) throw new Error('Discount percent must be between 0 and 100');
+    return { durationDays, discountPercent };
+  });
+}
+
 // Custom plans don't have a single credits/price - the customer picks a
-// quantity (>= minCredits) at purchase time. The plain credits/
-// base_price_paise/final_price_paise columns stay populated with the "buy
-// exactly the minimum" figures, so every existing consumer of those columns
-// (admin Orders/Payments/Credits views, list cards) still shows something
+// quantity (>= minCredits) and a duration at purchase time. The plain
+// credits/base_price_paise/final_price_paise columns stay populated with
+// the "buy exactly the minimum, at the first configured duration's
+// discount" figures, so every existing consumer of those columns (admin
+// Orders/Payments/Credits views, list cards) still shows something
 // meaningful without needing to know about plan_type at all.
-function deriveCustomPricing(minCredits, pricePerCreditPaise, discountPerCreditPaise) {
+function deriveCustomPricing(minCredits, pricePerCreditPaise, customDurationOptions) {
   const basePricePaise = minCredits * pricePerCreditPaise;
-  const discountPaise = minCredits * discountPerCreditPaise;
+  const representativeDiscountPercent = customDurationOptions && customDurationOptions[0] ? customDurationOptions[0].discountPercent : 0;
+  const discountPaise = Math.round((basePricePaise * representativeDiscountPercent) / 100);
   return { credits: minCredits, basePricePaise, discountPaise, finalPricePaise: Math.max(0, basePricePaise - discountPaise) };
 }
 
@@ -123,8 +144,9 @@ router.post('/', (req, res) => {
     durationOptions,
     // CUSTOM
     minCredits,
+    maxCredits,
     pricePerCreditPaise,
-    discountPerCreditPaise,
+    customDurationOptions,
   } = req.body || {};
 
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
@@ -132,15 +154,22 @@ router.post('/', (req, res) => {
 
   const isCustom = planType === 'CUSTOM';
   let pricing;
+  let resolvedCustomDurationOptions = [];
   if (isCustom) {
     if (!Number.isInteger(minCredits) || minCredits <= 0) return res.status(400).json({ error: 'Minimum credits must be a positive whole number' });
+    if (maxCredits !== undefined && maxCredits !== null && (!Number.isInteger(maxCredits) || maxCredits < minCredits)) {
+      return res.status(400).json({ error: 'Maximum credits must be a whole number >= minimum credits' });
+    }
     if (!Number.isInteger(pricePerCreditPaise) || pricePerCreditPaise < 0) return res.status(400).json({ error: 'Price per credit is required' });
-    const discount = Number.isInteger(discountPerCreditPaise) && discountPerCreditPaise > 0 ? discountPerCreditPaise : 0;
-    if (discount > pricePerCreditPaise) return res.status(400).json({ error: 'Discount per credit cannot exceed the price per credit' });
-    pricing = deriveCustomPricing(minCredits, pricePerCreditPaise, discount);
+    try {
+      resolvedCustomDurationOptions = validateCustomDurationOptions(customDurationOptions) || [];
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    pricing = deriveCustomPricing(minCredits, pricePerCreditPaise, resolvedCustomDurationOptions);
     pricing.minCredits = minCredits;
+    pricing.maxCredits = Number.isInteger(maxCredits) ? maxCredits : null;
     pricing.pricePerCreditPaise = pricePerCreditPaise;
-    pricing.discountPerCreditPaise = discount;
   } else {
     if (!Number.isInteger(credits) || credits <= 0) return res.status(400).json({ error: 'Credits must be a positive whole number' });
     if (!Number.isInteger(basePricePaise) || basePricePaise < 0) return res.status(400).json({ error: 'Base price is required' });
@@ -159,8 +188,9 @@ router.post('/', (req, res) => {
     .prepare(
       `INSERT INTO plans (
          name, plan_type, credits, duration_days, base_price_paise, discount_paise, final_price_paise,
-         min_credits, price_per_credit_paise, discount_per_credit_paise, duration_options_json, features_json, sort_order, is_featured
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         min_credits, max_credits, price_per_credit_paise, discount_per_credit_paise, duration_options_json,
+         custom_duration_options_json, features_json, sort_order, is_featured
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name.trim(),
@@ -171,9 +201,11 @@ router.post('/', (req, res) => {
       pricing.discountPaise,
       pricing.finalPricePaise,
       isCustom ? pricing.minCredits : null,
+      isCustom ? pricing.maxCredits : null,
       isCustom ? pricing.pricePerCreditPaise : null,
-      isCustom ? pricing.discountPerCreditPaise : 0,
+      0,
       JSON.stringify(resolvedDurationOptions),
+      JSON.stringify(isCustom ? resolvedCustomDurationOptions : []),
       JSON.stringify(features || []),
       sortOrder || 0,
       isFeatured ? 1 : 0
@@ -200,25 +232,34 @@ router.patch('/:id', (req, res) => {
     discountPaise,
     durationOptions,
     minCredits,
+    maxCredits,
     pricePerCreditPaise,
-    discountPerCreditPaise,
+    customDurationOptions,
   } = req.body || {};
 
   const nextType = planType === 'CUSTOM' || planType === 'FIXED' ? planType : existing.plan_type;
   const isCustom = nextType === 'CUSTOM';
 
   let pricing;
+  let resolvedCustomDurationOptions = [];
   if (isCustom) {
     const nextMinCredits = Number.isInteger(minCredits) ? minCredits : existing.min_credits;
+    const nextMaxCredits = maxCredits === undefined ? existing.max_credits : maxCredits;
     const nextPricePerCredit = Number.isInteger(pricePerCreditPaise) ? pricePerCreditPaise : existing.price_per_credit_paise;
-    const nextDiscountPerCredit = Number.isInteger(discountPerCreditPaise) ? discountPerCreditPaise : existing.discount_per_credit_paise || 0;
     if (!Number.isInteger(nextMinCredits) || nextMinCredits <= 0) return res.status(400).json({ error: 'Minimum credits must be a positive whole number' });
+    if (nextMaxCredits !== null && (!Number.isInteger(nextMaxCredits) || nextMaxCredits < nextMinCredits)) {
+      return res.status(400).json({ error: 'Maximum credits must be a whole number >= minimum credits' });
+    }
     if (!Number.isInteger(nextPricePerCredit) || nextPricePerCredit < 0) return res.status(400).json({ error: 'Price per credit is required' });
-    if (nextDiscountPerCredit > nextPricePerCredit) return res.status(400).json({ error: 'Discount per credit cannot exceed the price per credit' });
-    pricing = deriveCustomPricing(nextMinCredits, nextPricePerCredit, nextDiscountPerCredit);
+    try {
+      resolvedCustomDurationOptions = validateCustomDurationOptions(customDurationOptions) ?? JSON.parse(existing.custom_duration_options_json || '[]');
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    pricing = deriveCustomPricing(nextMinCredits, nextPricePerCredit, resolvedCustomDurationOptions);
     pricing.minCredits = nextMinCredits;
+    pricing.maxCredits = nextMaxCredits;
     pricing.pricePerCreditPaise = nextPricePerCredit;
-    pricing.discountPerCreditPaise = nextDiscountPerCredit;
   } else {
     const nextCredits = Number.isInteger(credits) ? credits : existing.credits;
     const nextBasePrice = Number.isInteger(basePricePaise) ? basePricePaise : existing.base_price_paise;
@@ -250,9 +291,11 @@ router.patch('/:id', (req, res) => {
       discount_paise = ?,
       final_price_paise = ?,
       min_credits = ?,
+      max_credits = ?,
       price_per_credit_paise = ?,
-      discount_per_credit_paise = ?,
+      discount_per_credit_paise = 0,
       duration_options_json = ?,
+      custom_duration_options_json = ?,
       features_json = COALESCE(?, features_json),
       is_active = COALESCE(?, is_active),
       is_featured = COALESCE(?, is_featured),
@@ -268,9 +311,10 @@ router.patch('/:id', (req, res) => {
     pricing.discountPaise,
     pricing.finalPricePaise,
     isCustom ? pricing.minCredits : null,
+    isCustom ? pricing.maxCredits : null,
     isCustom ? pricing.pricePerCreditPaise : null,
-    isCustom ? pricing.discountPerCreditPaise : 0,
     JSON.stringify(resolvedDurationOptions),
+    JSON.stringify(isCustom ? resolvedCustomDurationOptions : []),
     features ? JSON.stringify(features) : null,
     typeof isActive === 'boolean' ? (isActive ? 1 : 0) : null,
     typeof isFeatured === 'boolean' ? (isFeatured ? 1 : 0) : null,

@@ -39,6 +39,23 @@ function resolveFixedTier(plan, requestedDurationDays) {
   return match ? { durationDays: match.durationDays, finalPricePaise: match.finalPricePaise } : null;
 }
 
+// CUSTOM plans: the customer picks a quantity AND a duration - each
+// duration carries its own percentage discount off (credits * price per
+// credit), e.g. 1 year at 0%, 3 years at 18%. No quantity/volume discount -
+// deliberately kept simple. Falls back to the plan's own duration_days at
+// 0% if the admin hasn't configured any custom_duration_options_json yet.
+function resolveCustomDuration(plan, requestedDurationDays) {
+  const options = JSON.parse(plan.custom_duration_options_json || '[]');
+  if (options.length === 0) {
+    if (requestedDurationDays === undefined || requestedDurationDays === null || requestedDurationDays === plan.duration_days) {
+      return { durationDays: plan.duration_days, discountPercent: 0 };
+    }
+    return null;
+  }
+  const match = options.find((o) => o.durationDays === requestedDurationDays);
+  return match ? { durationDays: match.durationDays, discountPercent: match.discountPercent } : null;
+}
+
 // Same "usable" definition checkEntitlement (customerAlbums.js) uses to gate
 // album creation - a package you can't create albums with shouldn't be
 // toppable either. Deliberately ignores credits_used/credits_total (topping
@@ -106,10 +123,18 @@ router.post('/', async (req, res) => {
     if (!Number.isInteger(credits) || credits < plan.min_credits) {
       return res.status(400).json({ error: `Choose at least ${plan.min_credits} credits for this plan` });
     }
-    const effectivePricePerCredit = Math.max(0, plan.price_per_credit_paise - (plan.discount_per_credit_paise || 0));
-    amountPaise = credits * effectivePricePerCredit;
+    if (Number.isInteger(plan.max_credits) && credits > plan.max_credits) {
+      return res.status(400).json({ error: `Choose at most ${plan.max_credits} credits for this plan` });
+    }
+    const duration = resolveCustomDuration(plan, durationDays);
+    if (!duration) return res.status(400).json({ error: 'That duration is not available for this plan' });
+    const basePaise = credits * plan.price_per_credit_paise;
+    amountPaise = Math.round(basePaise * (1 - duration.discountPercent / 100));
+    // Always exactly the quantity the customer chose, regardless of
+    // duration - a 5-year purchase of 350 albums grants 350 credits, not
+    // 350 * 5. Duration only changes validity and the discount applied.
     creditsPurchased = credits;
-    resolvedDurationDays = plan.duration_days;
+    resolvedDurationDays = duration.durationDays;
   } else {
     const tier = resolveFixedTier(plan, durationDays);
     if (!tier) return res.status(400).json({ error: 'That duration is not available for this plan' });

@@ -77,11 +77,14 @@ export default function Plans() {
               {p.planType === 'CUSTOM' ? (
                 <>
                   <p className="text-2xl font-semibold mb-1">
-                    {formatPaise(Math.max(0, (p.pricePerCreditPaise || 0) - (p.discountPerCreditPaise || 0)))}
-                    <span className="text-sm font-normal text-text-muted"> / credit</span>
+                    {formatPaise(p.pricePerCreditPaise || 0)}
+                    <span className="text-sm font-normal text-text-muted"> / album</span>
                   </p>
                   <p className="text-xs text-text-muted">
-                    Min {p.minCredits} credits · {formatDuration(p.durationDays)}
+                    {p.minCredits}{p.maxCredits ? `–${p.maxCredits}` : '+'} albums
+                    {p.customDurationOptions.length > 0
+                      ? ` · ${p.customDurationOptions.length} duration option${p.customDurationOptions.length === 1 ? '' : 's'}`
+                      : ` · ${formatDuration(p.durationDays)}`}
                   </p>
                 </>
               ) : (
@@ -136,6 +139,11 @@ export default function Plans() {
 // price * years, discount = base - final) - see photobookPlans.js. This
 // local shape mirrors exactly what gets sent, nothing more.
 type Tier = { years: string; finalPrice: string };
+// CUSTOM plans: the customer picks a duration in addition to a quantity;
+// each duration carries its own percentage discount off
+// (credits * pricePerCreditPaise). No base/final price per option here -
+// those depend on the quantity, which varies per purchase.
+type CustomTier = { months: string; discountPercent: string };
 
 function PlanDialog({
   plan,
@@ -165,16 +173,21 @@ function PlanDialog({
   );
 
   // CUSTOM
-  const [minCredits, setMinCredits] = useState(String(plan?.minCredits ?? ''));
+  const [minCredits, setMinCredits] = useState(String(plan?.minCredits ?? '50'));
+  const [maxCredits, setMaxCredits] = useState(String(plan?.maxCredits ?? ''));
   const [pricePerCredit, setPricePerCredit] = useState(String(plan?.pricePerCreditPaise ? plan.pricePerCreditPaise / 100 : ''));
-  const [discountPerCredit, setDiscountPerCredit] = useState(String(plan?.discountPerCreditPaise ? plan.discountPerCreditPaise / 100 : '0'));
+  const [customTiers, setCustomTiers] = useState<CustomTier[]>(
+    (plan?.customDurationOptions || []).map((o) => ({
+      months: String(daysToMonths(o.durationDays)),
+      discountPercent: String(o.discountPercent),
+    }))
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const isCustom = planType === 'CUSTOM';
   const finalPrice = Math.max(0, (Number(basePrice) || 0) - (Number(discount) || 0));
-  const effectivePerCredit = Math.max(0, (Number(pricePerCredit) || 0) - (Number(discountPerCredit) || 0));
   const oneYearBasePrice = Number(basePrice) || 0;
 
   async function handleSubmit() {
@@ -189,8 +202,12 @@ function PlanDialog({
       };
       if (isCustom) {
         body.minCredits = parseInt(minCredits, 10);
+        body.maxCredits = maxCredits.trim() ? parseInt(maxCredits, 10) : null;
         body.pricePerCreditPaise = Math.round(Number(pricePerCredit) * 100);
-        body.discountPerCreditPaise = Math.round(Number(discountPerCredit || 0) * 100);
+        body.customDurationOptions = customTiers.map((t) => ({
+          durationDays: monthsToDays(Number(t.months) || 0),
+          discountPercent: Number(t.discountPercent) || 0,
+        }));
       } else {
         body.credits = parseInt(credits, 10);
         body.basePricePaise = Math.round(Number(basePrice) * 100);
@@ -272,49 +289,99 @@ function PlanDialog({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Minimum Credits</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Minimum Albums</label>
                   <input
                     type="number"
                     className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
                     value={minCredits}
                     onChange={(e) => setMinCredits(e.target.value)}
                   />
+                  <p className="text-[10px] text-text-muted mt-1">Keeps small orders on Demo instead of undercutting it.</p>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Duration (months)</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Maximum Albums (optional)</label>
                   <input
                     type="number"
+                    placeholder="No limit"
                     className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-                    value={durationMonths}
-                    onChange={(e) => setDurationMonths(e.target.value)}
-                  />
-                  <p className="text-[10px] text-text-muted mt-1">{formatDuration(monthsToDays(Number(durationMonths) || 0))}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Price per Credit (₹)</label>
-                  <input
-                    type="number"
-                    className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-                    value={pricePerCredit}
-                    onChange={(e) => setPricePerCredit(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Discount per Credit (₹)</label>
-                  <input
-                    type="number"
-                    className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-                    value={discountPerCredit}
-                    onChange={(e) => setDiscountPerCredit(e.target.value)}
+                    value={maxCredits}
+                    onChange={(e) => setMaxCredits(e.target.value)}
                   />
                 </div>
               </div>
-              <p className="text-xs text-text-muted">
-                Customer pays: <span className="font-semibold text-text">₹{effectivePerCredit.toLocaleString('en-IN')}</span> per
-                credit, minimum {minCredits || 0} credits (₹{(effectivePerCredit * (Number(minCredits) || 0)).toLocaleString('en-IN')})
-              </p>
+              <div>
+                <label className="block text-[10px] text-text-muted mb-1">Price per Album (₹)</label>
+                <input
+                  type="number"
+                  className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
+                  value={pricePerCredit}
+                  onChange={(e) => setPricePerCredit(e.target.value)}
+                />
+                <p className="text-[10px] text-text-muted mt-1">
+                  E.g. {minCredits || 0} albums = ₹{((Number(pricePerCredit) || 0) * (Number(minCredits) || 0)).toLocaleString('en-IN')} before any duration discount.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[10px] text-text-muted uppercase">Duration Options</label>
+                  <button
+                    type="button"
+                    onClick={() => setCustomTiers((t) => [...t, { months: '12', discountPercent: '0' }])}
+                    className="text-[11px] text-brand hover:underline"
+                  >
+                    + Add Duration
+                  </button>
+                </div>
+                <p className="text-[11px] text-text-muted mb-2">
+                  The customer picks one of these when buying, in addition to how many albums. Each duration can carry its own
+                  discount off the album total - price = albums × ₹{pricePerCredit || 0} × (1 − discount%). Credits are always
+                  exactly the album count chosen, whichever duration is picked.
+                </p>
+                {customTiers.length === 0 ? (
+                  <p className="text-[11px] text-text-muted">
+                    None yet - customer only gets the {formatDuration(monthsToDays(Number(durationMonths) || 0))} default duration
+                    above, at no discount. Add one to offer a discount for a longer commitment.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {customTiers.map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                        <div className="w-20 shrink-0">
+                          <input
+                            type="number"
+                            placeholder="Months"
+                            className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                            value={t.months}
+                            onChange={(e) => setCustomTiers((ts) => ts.map((x, j) => (j === i ? { ...x, months: e.target.value } : x)))}
+                          />
+                          <p className="text-[9px] text-text-muted mt-0.5 truncate">{formatDuration(monthsToDays(Number(t.months) || 0))}</p>
+                        </div>
+                        <div className="flex-1 flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            placeholder="0"
+                            className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                            value={t.discountPercent}
+                            onChange={(e) => setCustomTiers((ts) => ts.map((x, j) => (j === i ? { ...x, discountPercent: e.target.value } : x)))}
+                          />
+                          <span className="text-xs text-text-muted">% off</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCustomTiers((ts) => ts.filter((_, j) => j !== i))}
+                          aria-label="Remove duration option"
+                          className="text-text-muted hover:text-danger"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <>
