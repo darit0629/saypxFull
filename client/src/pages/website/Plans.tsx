@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Package, Plus, X } from 'lucide-react';
+import { Package, Plus, X, Lock } from 'lucide-react';
 import { api, formatPaise, formatDuration, monthsToDays, daysToMonths, type PhotoBookPlan, type PlanType } from '../../lib/api';
 import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
 
@@ -81,16 +81,29 @@ export default function Plans() {
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-semibold mb-1">
-                    {formatPaise(p.finalPricePaise)}
-                    {p.discountPaise > 0 && (
-                      <span className="ml-2 text-sm font-normal text-text-muted line-through">{formatPaise(p.basePricePaise)}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {p.credits} albums · {formatDuration(p.durationDays)}
-                    {p.durationOptions.length > 0 && ` · +${p.durationOptions.length} more`}
-                  </p>
+                  <p className="text-xs text-text-muted mb-1.5">{p.credits} Album Credits · every duration below</p>
+                  <div className="space-y-0.5">
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="text-text-muted">{formatDuration(p.durationDays)}</span>
+                      <span className="font-semibold">
+                        {formatPaise(p.finalPricePaise)}
+                        {p.discountPaise > 0 && (
+                          <span className="ml-1.5 text-[11px] font-normal text-text-muted line-through">{formatPaise(p.basePricePaise)}</span>
+                        )}
+                      </span>
+                    </div>
+                    {p.durationOptions.map((o) => (
+                      <div key={o.durationDays} className="flex items-baseline justify-between text-sm">
+                        <span className="text-text-muted">{formatDuration(o.durationDays)}</span>
+                        <span className="font-semibold">
+                          {formatPaise(o.finalPricePaise)}
+                          {o.discountPaise > 0 && (
+                            <span className="ml-1.5 text-[11px] font-normal text-text-muted line-through">{formatPaise(o.basePricePaise)}</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </>
               )}
             </button>
@@ -206,6 +219,11 @@ function PlanDialog({
         body.discountPaise = Math.round(Number(discount || 0) * 100);
         body.durationOptions = tiers.map((t) => ({
           durationDays: monthsToDays(Number(t.months) || 0),
+          // Always the base plan's own credits - the server re-enforces this
+          // regardless of what's sent, but sending it correctly here too
+          // keeps the payload self-documenting rather than relying solely
+          // on server-side normalization.
+          credits: parseInt(credits, 10),
           basePricePaise: Math.round(Number(t.basePrice) * 100),
           discountPaise: Math.round(Number(t.discount || 0) * 100),
         }));
@@ -372,7 +390,8 @@ function PlanDialog({
                 <p className="text-[10px] text-text-muted uppercase">Auto-Generate Longer Durations</p>
                 <p className="text-[11px] text-text-muted">
                   Fills in yearly tiers beyond the base duration above (e.g. enter 6 months above → generates 1, 2, 3 years),
-                  each with a bigger discount the longer it runs. Still hand-editable below afterward.
+                  each with a bigger discount the longer it runs and the same {credits || 0} Album Credits as the base plan.
+                  Still hand-editable below afterward - these are just starting numbers, not a fixed formula.
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
@@ -426,7 +445,7 @@ function PlanDialog({
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[10px] text-text-muted uppercase">Duration Options</label>
+                  <label className="block text-[10px] text-text-muted uppercase">Extra Duration Options</label>
                   <button
                     type="button"
                     onClick={() => setTiers((t) => [...t, { months: '', basePrice, discount: '0' }])}
@@ -435,6 +454,10 @@ function PlanDialog({
                     + Add Duration
                   </button>
                 </div>
+                <p className="text-[11px] text-text-muted mb-2">
+                  Every duration grants the same <span className="font-semibold text-text">{credits || 0} Album Credits</span> as
+                  above - a longer duration only changes validity and price, never how many credits the customer gets.
+                </p>
                 {tiers.length === 0 ? (
                   <p className="text-[11px] text-text-muted">
                     None yet - customer only sees the {formatDuration(monthsToDays(Number(durationMonths) || 0))} duration above.
@@ -445,40 +468,45 @@ function PlanDialog({
                     {tiers.map((t, i) => {
                       const tierFinal = Math.max(0, (Number(t.basePrice) || 0) - (Number(t.discount) || 0));
                       return (
-                        <div key={i} className="flex items-center gap-2 rounded-lg border border-border p-2">
-                          <div className="w-20 shrink-0">
+                        <div key={i} className="rounded-lg border border-border p-2 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 shrink-0">
+                              <input
+                                type="number"
+                                placeholder="Months"
+                                className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                                value={t.months}
+                                onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, months: e.target.value } : x)))}
+                              />
+                              <p className="text-[9px] text-text-muted mt-0.5 truncate">{formatDuration(monthsToDays(Number(t.months) || 0))}</p>
+                            </div>
                             <input
                               type="number"
-                              placeholder="Months"
-                              className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                              value={t.months}
-                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, months: e.target.value } : x)))}
+                              placeholder="Base ₹"
+                              className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                              value={t.basePrice}
+                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, basePrice: e.target.value } : x)))}
                             />
-                            <p className="text-[9px] text-text-muted mt-0.5 truncate">{formatDuration(monthsToDays(Number(t.months) || 0))}</p>
+                            <input
+                              type="number"
+                              placeholder="Discount ₹"
+                              className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                              value={t.discount}
+                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, discount: e.target.value } : x)))}
+                            />
+                            <span className="flex-1 text-right text-[11px] text-text-muted">₹{tierFinal.toLocaleString('en-IN')}</span>
+                            <button
+                              type="button"
+                              onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))}
+                              aria-label="Remove duration option"
+                              className="text-text-muted hover:text-danger"
+                            >
+                              <X size={14} />
+                            </button>
                           </div>
-                          <input
-                            type="number"
-                            placeholder="Base ₹"
-                            className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                            value={t.basePrice}
-                            onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, basePrice: e.target.value } : x)))}
-                          />
-                          <input
-                            type="number"
-                            placeholder="Discount ₹"
-                            className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                            value={t.discount}
-                            onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, discount: e.target.value } : x)))}
-                          />
-                          <span className="flex-1 text-right text-[11px] text-text-muted">₹{tierFinal.toLocaleString('en-IN')}</span>
-                          <button
-                            type="button"
-                            onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))}
-                            aria-label="Remove duration option"
-                            className="text-text-muted hover:text-danger"
-                          >
-                            <X size={14} />
-                          </button>
+                          <p className="flex items-center gap-1 text-[10px] text-text-muted">
+                            <Lock size={9} /> {credits || 0} Album Credits (locked - same as the base plan)
+                          </p>
                         </div>
                       );
                     })}

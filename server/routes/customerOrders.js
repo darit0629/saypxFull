@@ -22,6 +22,14 @@ function serializeOrder(row) {
 // A FIXED plan's primary duration_days/final_price_paise is tier zero;
 // duration_options_json holds any additional selectable tiers. Returns null
 // if the requested duration isn't one of this plan's actual tiers.
+//
+// Deliberately extracts ONLY durationDays/finalPricePaise here, never a
+// tier's `credits` field - the core business rule is "longer duration never
+// means more credits", so the caller below always uses plan.credits for the
+// actual entitlement regardless of which tier this resolves to. A tier's
+// `credits` (present in the stored JSON, forced equal to plan.credits by
+// photobookPlans.js) exists for display/self-documentation, not as a value
+// this purchase path is allowed to read.
 function resolveFixedTier(plan, requestedDurationDays) {
   if (requestedDurationDays === undefined || requestedDurationDays === null || requestedDurationDays === plan.duration_days) {
     return { durationDays: plan.duration_days, finalPricePaise: plan.final_price_paise };
@@ -106,6 +114,9 @@ router.post('/', async (req, res) => {
     const tier = resolveFixedTier(plan, durationDays);
     if (!tier) return res.status(400).json({ error: 'That duration is not available for this plan' });
     amountPaise = tier.finalPricePaise;
+    // Always plan.credits, regardless of which duration tier was chosen -
+    // a 3-year purchase grants the exact same credits as a 1-year one, only
+    // the price and validity period differ. Never plan.credits * years.
     creditsPurchased = plan.credits;
     resolvedDurationDays = tier.durationDays;
   }

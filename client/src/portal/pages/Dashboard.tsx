@@ -122,6 +122,7 @@ export default function PortalDashboard() {
             <p className="text-2xl font-semibold mb-1">{activePackage.plan?.name}</p>
 
             <div className="mb-4">
+              <p className="text-[10px] text-text-muted uppercase mb-1">Album Credits</p>
               <div className="flex items-center justify-between text-xs text-text-muted mb-1">
                 <span>{activePackage.creditsUsed} Used</span>
                 <span>{activePackage.creditsRemaining} Remaining</span>
@@ -136,6 +137,7 @@ export default function PortalDashboard() {
 
             {activePackage.expiresAt && (
               <div className="text-sm text-text-muted">
+                <p className="text-[10px] text-text-muted uppercase mb-1">Package Validity</p>
                 {daysUntil(activePackage.expiresAt) !== null && daysUntil(activePackage.expiresAt)! >= 0 ? (
                   <p>Expires in {formatDuration(daysUntil(activePackage.expiresAt)!)}</p>
                 ) : (
@@ -145,8 +147,11 @@ export default function PortalDashboard() {
               </div>
             )}
 
-            {activePackage.plan && (
-              <p className="mt-3 text-xs text-text-muted">Purchased at {formatPaise(activePackage.plan.finalPricePaise)}</p>
+            {activePackage.purchasedAmountPaise != null && (
+              <p className="mt-3 text-xs text-text-muted">
+                Purchased at {formatPaise(activePackage.purchasedAmountPaise)}
+                {activePackage.purchasedDurationDays ? ` for ${formatDuration(activePackage.purchasedDurationDays)}` : ''}
+              </p>
             )}
 
             {activePackage.topupPricePerCreditPaise && (activePackage.status === 'ACTIVE' || activePackage.status === 'EXPIRING_SOON') && (

@@ -58,7 +58,10 @@ function fulfillOrder(orderId) {
 
   // Custom plans vary in quantity per order, and a FIXED plan's duration can
   // vary per order too (duration tiers) - the order itself, not the plan, is
-  // the source of truth for both.
+  // the source of truth for both. For a FIXED plan, credits_purchased was
+  // set by customerOrders.js to plan.credits regardless of the tier chosen
+  // (see resolveFixedTier there) - a longer duration tier only ever changes
+  // durationDaysGranted/the price paid, never creditsGranted.
   const durationDaysGranted = Number.isInteger(order.duration_days_purchased) ? order.duration_days_purchased : plan.duration_days;
   const durationMs = durationDaysGranted * 24 * 60 * 60 * 1000;
   const now = Date.now();

@@ -254,6 +254,11 @@ export type PlanType = 'FIXED' | 'CUSTOM';
 
 export interface PlanDurationOption {
   durationDays: number;
+  // Always equal to the parent plan's own `credits` - a longer duration
+  // tier never grants more album credits, only longer validity at a
+  // different (usually better) price. Server-enforced, not just a display
+  // convention - see photobookPlans.js's validateDurationOptions.
+  credits: number;
   basePricePaise: number;
   discountPaise: number;
   finalPricePaise: number;
@@ -312,6 +317,12 @@ export interface CustomerPackageView {
   expiresAt: number | null;
   status: PackageStatus | 'SUSPENDED' | 'CANCELLED';
   topupPricePerCreditPaise: number | null;
+  // What was actually paid/for how long, for the order that created or most
+  // recently renewed this package - can differ from plan.finalPricePaise/
+  // durationDays if a longer-duration tier was bought instead of the plan's
+  // primary one.
+  purchasedAmountPaise: number | null;
+  purchasedDurationDays: number | null;
 }
 
 export interface PhotoBookOrder {

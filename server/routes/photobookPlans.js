@@ -27,9 +27,20 @@ function serializePlan(row) {
 
 // Extra selectable duration tiers for a FIXED plan (its primary duration_days/
 // base_price_paise/discount_paise is always tier zero - these are additional
-// ones, e.g. "6 months" / "12 months" with a bigger discount the longer the
-// customer commits). Credits never vary by tier, only price and duration.
-function validateDurationOptions(raw) {
+// ones, e.g. "2 years" / "3 years" with a bigger discount the longer the
+// customer commits).
+//
+// CORE BUSINESS RULE: every tier grants the SAME album credits as the parent
+// plan - a longer duration buys longer validity and a bigger discount, never
+// more credits. `credits` is therefore forced to `parentCredits` here
+// unconditionally - any credits value a caller sends is discarded, not just
+// validated, so this can never drift even if a client (admin UI, a future
+// API consumer, anything) tries to send something else. This is the single
+// place that decides what a tier's credits are; nothing downstream (order
+// creation, fulfillment) ever reads credits from a tier - see
+// customerOrders.js's resolveFixedTier, which deliberately only extracts
+// durationDays/finalPricePaise.
+function validateDurationOptions(raw, parentCredits) {
   if (raw === undefined) return undefined; // caller keeps existing value
   if (!Array.isArray(raw)) throw new Error('durationOptions must be an array');
   return raw.map((opt) => {
@@ -39,7 +50,13 @@ function validateDurationOptions(raw) {
     if (!Number.isInteger(durationDays) || durationDays <= 0) throw new Error('Each duration option needs a positive whole number of days');
     if (!Number.isInteger(basePricePaise) || basePricePaise < 0) throw new Error('Each duration option needs a base price');
     if (discountPaise > basePricePaise) throw new Error('A duration option\'s discount cannot exceed its base price');
-    return { durationDays, basePricePaise, discountPaise, finalPricePaise: Math.max(0, basePricePaise - discountPaise) };
+    return {
+      durationDays,
+      credits: parentCredits,
+      basePricePaise,
+      discountPaise,
+      finalPricePaise: Math.max(0, basePricePaise - discountPaise),
+    };
   });
 }
 
@@ -107,7 +124,7 @@ router.post('/', (req, res) => {
 
   let resolvedDurationOptions;
   try {
-    resolvedDurationOptions = isCustom ? [] : validateDurationOptions(durationOptions) || [];
+    resolvedDurationOptions = isCustom ? [] : validateDurationOptions(durationOptions, pricing.credits) || [];
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -162,13 +179,6 @@ router.patch('/:id', (req, res) => {
   const nextType = planType === 'CUSTOM' || planType === 'FIXED' ? planType : existing.plan_type;
   const isCustom = nextType === 'CUSTOM';
 
-  let resolvedDurationOptions;
-  try {
-    resolvedDurationOptions = isCustom ? [] : validateDurationOptions(durationOptions) ?? JSON.parse(existing.duration_options_json || '[]');
-  } catch (e) {
-    return res.status(400).json({ error: e.message });
-  }
-
   let pricing;
   if (isCustom) {
     const nextMinCredits = Number.isInteger(minCredits) ? minCredits : existing.min_credits;
@@ -186,6 +196,20 @@ router.patch('/:id', (req, res) => {
     const nextBasePrice = Number.isInteger(basePricePaise) ? basePricePaise : existing.base_price_paise;
     const nextDiscount = Number.isInteger(discountPaise) ? discountPaise : existing.discount_paise;
     pricing = { credits: nextCredits, basePricePaise: nextBasePrice, discountPaise: nextDiscount, finalPricePaise: Math.max(0, nextBasePrice - nextDiscount) };
+  }
+
+  // If the plan's own credits changed but durationOptions wasn't touched in
+  // this request, re-stamp every existing tier's credits to match - a tier
+  // must never keep displaying a stale credits figure after the plan's
+  // credits are edited.
+  let resolvedDurationOptions;
+  try {
+    resolvedDurationOptions = isCustom
+      ? []
+      : validateDurationOptions(durationOptions, pricing.credits) ??
+        JSON.parse(existing.duration_options_json || '[]').map((t) => ({ ...t, credits: pricing.credits }));
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
   }
 
   db.prepare(

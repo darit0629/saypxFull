@@ -160,36 +160,12 @@ function FixedPlanCard({
   return (
     <div className="rounded-2xl border border-border bg-card p-6 flex flex-col">
       <p className="text-lg font-semibold mb-1">{plan.name}</p>
-      <div className="mb-1">
-        <span className="text-3xl font-bold">{formatPaise(active.finalPricePaise)}</span>
-        {active.discountPaise > 0 && (
-          <span className="ml-2 text-sm text-text-muted line-through">{formatPaise(active.basePricePaise)}</span>
-        )}
-      </div>
-      <p className="text-xs text-text-muted mb-4">
-        {plan.credits} albums · {formatDuration(active.durationDays)}
+      <p className="text-sm text-text-muted mb-4">
+        <span className="font-semibold text-text">{plan.credits.toLocaleString('en-IN')}</span> Digital Albums
       </p>
 
-      {tiers.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {tiers.map((t) => (
-            <button
-              key={t.durationDays}
-              onClick={() => onDurationChange(t.durationDays)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
-                t.durationDays === active.durationDays
-                  ? 'border-brand bg-brand/15 text-brand'
-                  : 'border-border text-text-muted hover:bg-white/5'
-              }`}
-            >
-              {formatDuration(t.durationDays)}
-            </button>
-          ))}
-        </div>
-      )}
-
       {plan.features.length > 0 && (
-        <ul className="space-y-1.5 mb-5 flex-1">
+        <ul className="space-y-1.5 mb-4">
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-1.5 text-xs text-text-muted">
               <Check size={13} className="mt-0.5 shrink-0 text-brand" /> {f}
@@ -197,6 +173,65 @@ function FixedPlanCard({
           ))}
         </ul>
       )}
+
+      {tiers.length > 1 ? (
+        <>
+          <p className="text-[10px] text-text-muted uppercase mb-1.5">Choose Your Validity</p>
+          <div className="space-y-1.5 mb-3">
+            {tiers.map((t) => {
+              const isActive = t.durationDays === active.durationDays;
+              return (
+                <button
+                  key={t.durationDays}
+                  onClick={() => onDurationChange(t.durationDays)}
+                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm ${
+                    isActive ? 'border-brand bg-brand/10' : 'border-border hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${isActive ? 'border-brand bg-brand' : 'border-border'}`}
+                    />
+                    {formatDuration(t.durationDays)}
+                  </span>
+                  <span className="font-semibold">
+                    {formatPaise(t.finalPricePaise)}
+                    {t.discountPaise > 0 && (
+                      <span className="ml-1.5 text-[11px] font-normal text-text-muted line-through">{formatPaise(t.basePricePaise)}</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="rounded-lg bg-white/5 p-3 mb-2 text-xs space-y-0.5">
+            <p>
+              You get: <span className="font-semibold text-text">{plan.credits.toLocaleString('en-IN')} Album Credits</span>
+            </p>
+            <p>
+              Package validity: <span className="font-semibold text-text">{formatDuration(active.durationDays)}</span>
+            </p>
+            {active.discountPaise > 0 && (
+              <p>
+                You save: <span className="font-semibold text-emerald-400">{formatPaise(active.discountPaise)}</span>
+              </p>
+            )}
+          </div>
+          <p className="text-[10px] text-text-muted mb-4">
+            Longer plans give you more time at a better price. Your album credits remain the same.
+          </p>
+        </>
+      ) : (
+        <div className="mb-4">
+          <span className="text-3xl font-bold">{formatPaise(active.finalPricePaise)}</span>
+          {active.discountPaise > 0 && (
+            <span className="ml-2 text-sm text-text-muted line-through">{formatPaise(active.basePricePaise)}</span>
+          )}
+          <p className="text-xs text-text-muted mt-1">Valid for {formatDuration(active.durationDays)}</p>
+        </div>
+      )}
+
       {loggedIn ? (
         <button
           onClick={onBuy}

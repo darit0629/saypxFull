@@ -10,6 +10,12 @@ const router = express.Router();
 // time (Phase 3). A customer here only ever sees their own package(s).
 function serializeForCustomer(pkg) {
   const plan = db.prepare('SELECT * FROM plans WHERE id = ?').get(pkg.plan_id);
+  // pkg.order_id is the purchase/renewal that most recently touched this
+  // package - its own amount/duration is what the customer actually paid,
+  // which can differ from the plan's primary tier if they bought (or last
+  // renewed into) a longer-duration tier. Showing plan.finalPricePaise here
+  // unconditionally would be wrong for anyone who didn't buy the 1st tier.
+  const order = pkg.order_id ? db.prepare('SELECT amount_paise, duration_days_purchased FROM orders WHERE id = ?').get(pkg.order_id) : null;
   return {
     id: pkg.id,
     plan: plan ? serializePlan(plan) : null,
@@ -21,6 +27,8 @@ function serializeForCustomer(pkg) {
     status: pkg.admin_override_status === 'SUSPENDED' || pkg.admin_override_status === 'CANCELLED'
       ? pkg.admin_override_status
       : pkg.computed_status,
+    purchasedAmountPaise: order ? order.amount_paise : null,
+    purchasedDurationDays: order && order.duration_days_purchased ? order.duration_days_purchased : plan ? plan.duration_days : null,
   };
 }
 

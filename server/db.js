@@ -388,4 +388,30 @@ if (creditTxSchema && !creditTxSchema.sql.includes('CREDIT_TOPUP')) {
   })();
 }
 
+// Safety net for the core business rule "longer duration never means more
+// credits": duration_options_json tiers now always carry an explicit
+// `credits` field (see photobookPlans.js), forced equal to the parent
+// plan's own credits at write time. This re-stamps every existing plan's
+// stored tiers to match on every boot, in case any tier was ever written
+// before that field existed or somehow drifted - cheap (plan count is
+// small) and a no-op once everything already matches, so it's safe to just
+// always run rather than track whether it's needed.
+{
+  const plans = db.prepare("SELECT id, credits, duration_options_json FROM plans WHERE plan_type = 'FIXED' OR plan_type IS NULL").all();
+  const restamp = db.prepare('UPDATE plans SET duration_options_json = ? WHERE id = ?');
+  for (const p of plans) {
+    let tiers;
+    try {
+      tiers = JSON.parse(p.duration_options_json || '[]');
+    } catch {
+      tiers = [];
+    }
+    if (!Array.isArray(tiers) || tiers.length === 0) continue;
+    const needsFix = tiers.some((t) => t.credits !== p.credits);
+    if (needsFix) {
+      restamp.run(JSON.stringify(tiers.map((t) => ({ ...t, credits: p.credits }))), p.id);
+    }
+  }
+}
+
 module.exports = db;
