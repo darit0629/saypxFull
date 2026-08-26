@@ -4,7 +4,7 @@ import { LogOut, PackageX, BookImage, Plus, X, Trash2, Sparkles } from 'lucide-r
 import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
 import { openRazorpayCheckout } from '../lib/razorpayCheckout';
-import { formatDate, formatPaise, type CustomerPackageView } from '../../lib/api';
+import { formatDate, formatPaise, formatDuration, type CustomerPackageView } from '../../lib/api';
 
 interface CreateOrderResponse {
   orderId: number;
@@ -137,7 +137,7 @@ export default function PortalDashboard() {
             {activePackage.expiresAt && (
               <div className="text-sm text-text-muted">
                 {daysUntil(activePackage.expiresAt) !== null && daysUntil(activePackage.expiresAt)! >= 0 ? (
-                  <p>Expires in {daysUntil(activePackage.expiresAt)} days</p>
+                  <p>Expires in {formatDuration(daysUntil(activePackage.expiresAt)!)}</p>
                 ) : (
                   <p>Expired</p>
                 )}

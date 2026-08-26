@@ -5,6 +5,7 @@ import {
   api,
   formatDate,
   formatPaise,
+  formatDuration,
   type PhotoBookCustomer,
   type PhotoBookPackage,
   type PhotoBookPlan,
@@ -323,7 +324,7 @@ function CreatePackageDialog({
                 >
                   <p className="text-sm font-medium">{p.name}</p>
                   <p className="text-xs text-text-muted">
-                    {p.credits} albums · {p.durationDays} days · {formatPaise(p.finalPricePaise)}
+                    {p.credits} albums · {formatDuration(p.durationDays)} · {formatPaise(p.finalPricePaise)}
                   </p>
                 </button>
               ))}

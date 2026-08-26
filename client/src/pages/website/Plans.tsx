@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Package, Plus, X } from 'lucide-react';
-import { api, formatPaise, type PhotoBookPlan, type PlanType } from '../../lib/api';
+import { api, formatPaise, formatDuration, monthsToDays, daysToMonths, type PhotoBookPlan, type PlanType } from '../../lib/api';
 import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
 
 export default function Plans() {
@@ -76,7 +76,7 @@ export default function Plans() {
                     <span className="text-sm font-normal text-text-muted"> / credit</span>
                   </p>
                   <p className="text-xs text-text-muted">
-                    Min {p.minCredits} credits · {p.durationDays} days
+                    Min {p.minCredits} credits · {formatDuration(p.durationDays)}
                   </p>
                 </>
               ) : (
@@ -88,7 +88,8 @@ export default function Plans() {
                     )}
                   </p>
                   <p className="text-xs text-text-muted">
-                    {p.credits} albums · {p.durationDays} days
+                    {p.credits} albums · {formatDuration(p.durationDays)}
+                    {p.durationOptions.length > 0 && ` · +${p.durationOptions.length} more`}
                   </p>
                 </>
               )}
@@ -112,6 +113,8 @@ export default function Plans() {
   );
 }
 
+type Tier = { months: string; basePrice: string; discount: string };
+
 function PlanDialog({
   plan,
   onClose,
@@ -125,19 +128,26 @@ function PlanDialog({
 }) {
   const [name, setName] = useState(plan?.name || '');
   const [planType, setPlanType] = useState<PlanType>(plan?.planType || 'FIXED');
-  const [durationDays, setDurationDays] = useState(String(plan?.durationDays ?? '365'));
+  const [durationMonths, setDurationMonths] = useState(String(plan ? daysToMonths(plan.durationDays) : '12'));
 
   // FIXED
   const [credits, setCredits] = useState(String(plan?.credits ?? ''));
   const [basePrice, setBasePrice] = useState(String(plan && plan.planType !== 'CUSTOM' ? plan.basePricePaise / 100 : ''));
   const [discount, setDiscount] = useState(String(plan && plan.planType !== 'CUSTOM' ? plan.discountPaise / 100 : '0'));
-  const [tiers, setTiers] = useState(
+  const [tiers, setTiers] = useState<Tier[]>(
     (plan?.durationOptions || []).map((o) => ({
-      durationDays: String(o.durationDays),
+      months: String(daysToMonths(o.durationDays)),
       basePrice: String(o.basePricePaise / 100),
       discount: String(o.discountPaise / 100),
     }))
   );
+
+  // Auto-generator for longer duration tiers - a convenience that fills in
+  // `tiers` above (still hand-editable afterward), not a separate concept
+  // the backend knows about.
+  const [autoUpToYears, setAutoUpToYears] = useState('3');
+  const [autoDiscountMode, setAutoDiscountMode] = useState<'PERCENT' | 'FLAT'>('PERCENT');
+  const [autoDiscountPerYear, setAutoDiscountPerYear] = useState('5');
 
   // CUSTOM
   const [minCredits, setMinCredits] = useState(String(plan?.minCredits ?? ''));
@@ -151,6 +161,32 @@ function PlanDialog({
   const finalPrice = Math.max(0, (Number(basePrice) || 0) - (Number(discount) || 0));
   const effectivePerCredit = Math.max(0, (Number(pricePerCredit) || 0) - (Number(discountPerCredit) || 0));
 
+  // More time period -> more discount: each generated tier's discount scales
+  // with how many years out it is. Base price scales linearly with duration
+  // from the plan's own base price/duration, then the escalating discount
+  // (money or %, admin's choice) is subtracted on top.
+  function handleAutoGenerate() {
+    const baseMonths = Number(durationMonths) || 0;
+    const baseP = Number(basePrice) || 0;
+    const upToYears = parseInt(autoUpToYears, 10);
+    const perYear = Number(autoDiscountPerYear) || 0;
+    if (baseMonths <= 0 || baseP <= 0 || !Number.isInteger(upToYears) || upToYears <= 0) {
+      setError('Fill in duration, base price, and "up to N years" first');
+      return;
+    }
+    setError(null);
+    const generated: Tier[] = [];
+    for (let year = 1; year <= upToYears; year++) {
+      const months = year * 12;
+      if (months <= baseMonths) continue; // never generate a tier shorter than/equal to the base
+      const tierBase = Math.round(baseP * (months / baseMonths));
+      const tierDiscount =
+        autoDiscountMode === 'PERCENT' ? Math.round((tierBase * (perYear * year)) / 100) : Math.round(perYear * year);
+      generated.push({ months: String(months), basePrice: String(tierBase), discount: String(Math.min(tierDiscount, tierBase)) });
+    }
+    setTiers(generated);
+  }
+
   async function handleSubmit() {
     setSaving(true);
     setError(null);
@@ -158,7 +194,7 @@ function PlanDialog({
       const body: Record<string, unknown> = {
         name,
         planType,
-        durationDays: parseInt(durationDays, 10),
+        durationDays: monthsToDays(Number(durationMonths) || 0),
       };
       if (isCustom) {
         body.minCredits = parseInt(minCredits, 10);
@@ -169,7 +205,7 @@ function PlanDialog({
         body.basePricePaise = Math.round(Number(basePrice) * 100);
         body.discountPaise = Math.round(Number(discount || 0) * 100);
         body.durationOptions = tiers.map((t) => ({
-          durationDays: parseInt(t.durationDays, 10),
+          durationDays: monthsToDays(Number(t.months) || 0),
           basePricePaise: Math.round(Number(t.basePrice) * 100),
           discountPaise: Math.round(Number(t.discount || 0) * 100),
         }));
@@ -185,8 +221,8 @@ function PlanDialog({
   }
 
   const canSubmit = isCustom
-    ? name.trim() && durationDays && minCredits && pricePerCredit
-    : name.trim() && durationDays && credits && basePrice;
+    ? name.trim() && durationMonths && minCredits && pricePerCredit
+    : name.trim() && durationMonths && credits && basePrice;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
@@ -250,13 +286,14 @@ function PlanDialog({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Duration (days)</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Duration (months)</label>
                   <input
                     type="number"
                     className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-                    value={durationDays}
-                    onChange={(e) => setDurationDays(e.target.value)}
+                    value={durationMonths}
+                    onChange={(e) => setDurationMonths(e.target.value)}
                   />
+                  <p className="text-[10px] text-text-muted mt-1">{formatDuration(monthsToDays(Number(durationMonths) || 0))}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -297,13 +334,14 @@ function PlanDialog({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Duration (days)</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Duration (months)</label>
                   <input
                     type="number"
                     className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
-                    value={durationDays}
-                    onChange={(e) => setDurationDays(e.target.value)}
+                    value={durationMonths}
+                    onChange={(e) => setDurationMonths(e.target.value)}
                   />
+                  <p className="text-[10px] text-text-muted mt-1">{formatDuration(monthsToDays(Number(durationMonths) || 0))}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -330,12 +368,68 @@ function PlanDialog({
                 Customer pays: <span className="font-semibold text-text">₹{finalPrice.toLocaleString('en-IN')}</span>
               </p>
 
+              <div className="rounded-lg border border-border p-3 space-y-2.5">
+                <p className="text-[10px] text-text-muted uppercase">Auto-Generate Longer Durations</p>
+                <p className="text-[11px] text-text-muted">
+                  Fills in yearly tiers beyond the base duration above (e.g. enter 6 months above → generates 1, 2, 3 years),
+                  each with a bigger discount the longer it runs. Still hand-editable below afterward.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-text-muted mb-1">Up to (years)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                      value={autoUpToYears}
+                      onChange={(e) => setAutoUpToYears(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-text-muted mb-1">Discount / year</label>
+                    <input
+                      type="number"
+                      min={0}
+                      className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                      value={autoDiscountPerYear}
+                      onChange={(e) => setAutoDiscountPerYear(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-text-muted mb-1">Unit</label>
+                    <div className="flex rounded-lg border border-border overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAutoDiscountMode('PERCENT')}
+                        className={`flex-1 py-1.5 text-xs font-semibold ${autoDiscountMode === 'PERCENT' ? 'gradient-brand' : 'text-text-muted hover:bg-white/5'}`}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAutoDiscountMode('FLAT')}
+                        className={`flex-1 py-1.5 text-xs font-semibold ${autoDiscountMode === 'FLAT' ? 'gradient-brand' : 'text-text-muted hover:bg-white/5'}`}
+                      >
+                        ₹
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoGenerate}
+                  className="w-full rounded-lg border border-brand/40 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
+                >
+                  Generate Tiers
+                </button>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[10px] text-text-muted uppercase">Extra Duration Options</label>
+                  <label className="block text-[10px] text-text-muted uppercase">Duration Options</label>
                   <button
                     type="button"
-                    onClick={() => setTiers((t) => [...t, { durationDays: '', basePrice: basePrice, discount: '0' }])}
+                    onClick={() => setTiers((t) => [...t, { months: '', basePrice, discount: '0' }])}
                     className="text-[11px] text-brand hover:underline"
                   >
                     + Add Duration
@@ -343,8 +437,8 @@ function PlanDialog({
                 </div>
                 {tiers.length === 0 ? (
                   <p className="text-[11px] text-text-muted">
-                    None yet - customer only sees the {durationDays || '?'}-day duration above. Add one to let them choose a
-                    longer commitment for a bigger discount.
+                    None yet - customer only sees the {formatDuration(monthsToDays(Number(durationMonths) || 0))} duration above.
+                    Generate some above, or add one manually, to let them choose a longer commitment for a bigger discount.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -352,13 +446,16 @@ function PlanDialog({
                       const tierFinal = Math.max(0, (Number(t.basePrice) || 0) - (Number(t.discount) || 0));
                       return (
                         <div key={i} className="flex items-center gap-2 rounded-lg border border-border p-2">
-                          <input
-                            type="number"
-                            placeholder="Days"
-                            className="w-16 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                            value={t.durationDays}
-                            onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, durationDays: e.target.value } : x)))}
-                          />
+                          <div className="w-20 shrink-0">
+                            <input
+                              type="number"
+                              placeholder="Months"
+                              className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                              value={t.months}
+                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, months: e.target.value } : x)))}
+                            />
+                            <p className="text-[9px] text-text-muted mt-0.5 truncate">{formatDuration(monthsToDays(Number(t.months) || 0))}</p>
+                          </div>
                           <input
                             type="number"
                             placeholder="Base ₹"

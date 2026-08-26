@@ -384,3 +384,32 @@ export function formatDate(ts: number | null): string {
   if (!ts) return '—';
   return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+// Average Gregorian month length - used to convert between the day counts
+// plans/packages are actually stored/computed in (precise, no drift across
+// leap years) and the years/months an admin enters or a customer reads.
+const DAYS_PER_MONTH = 30.4375;
+
+export function monthsToDays(months: number): number {
+  return Math.round(months * DAYS_PER_MONTH);
+}
+
+export function daysToMonths(days: number): number {
+  return Math.round(days / DAYS_PER_MONTH);
+}
+
+// Plan/package durations are always stored as a day count (precise, no
+// calendar drift) - this is the one place that renders one as "1 year 6
+// months" for display. Falls back to raw days under a month, where a
+// years/months phrasing would be nonsensical ("0 months").
+export function formatDuration(days: number): string {
+  if (!Number.isFinite(days)) return '—';
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'}`;
+  const totalMonths = Math.round(days / DAYS_PER_MONTH);
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  const parts: string[] = [];
+  if (years) parts.push(`${years} year${years === 1 ? '' : 's'}`);
+  if (months) parts.push(`${months} month${months === 1 ? '' : 's'}`);
+  return parts.length ? parts.join(' ') : '0 months';
+}

@@ -4,7 +4,7 @@ import { ArrowLeft, Check } from 'lucide-react';
 import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
 import { openRazorpayCheckout } from '../lib/razorpayCheckout';
-import { formatPaise, type PhotoBookPlan } from '../../lib/api';
+import { formatPaise, formatDuration, type PhotoBookPlan } from '../../lib/api';
 
 interface CreateOrderResponse {
   orderId: number;
@@ -167,7 +167,7 @@ function FixedPlanCard({
         )}
       </div>
       <p className="text-xs text-text-muted mb-4">
-        {plan.credits} albums · {active.durationDays} days
+        {plan.credits} albums · {formatDuration(active.durationDays)}
       </p>
 
       {tiers.length > 1 && (
@@ -182,7 +182,7 @@ function FixedPlanCard({
                   : 'border-border text-text-muted hover:bg-white/5'
               }`}
             >
-              {t.durationDays}d
+              {formatDuration(t.durationDays)}
             </button>
           ))}
         </div>
@@ -247,7 +247,7 @@ function CustomPlanCard({
         )}
       </div>
       <p className="text-xs text-text-muted mb-4">
-        Minimum {min} credits · {plan.durationDays} days
+        Minimum {min} credits · {formatDuration(plan.durationDays)}
       </p>
       {plan.features.length > 0 && (
         <ul className="space-y-1.5 mb-4 flex-1">
