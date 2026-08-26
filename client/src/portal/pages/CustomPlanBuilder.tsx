@@ -5,6 +5,7 @@ import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
 import { openRazorpayCheckout } from '../lib/razorpayCheckout';
 import { formatPaise, formatDuration, type PhotoBookPlan } from '../../lib/api';
+import PortalHeader from '../components/PortalHeader';
 
 interface CreateOrderResponse {
   orderId: number;
@@ -99,25 +100,32 @@ export default function CustomPlanBuilder() {
 
   if (plan === undefined) {
     return (
-      <div className="relative z-10 min-h-screen flex items-center justify-center">
-        <p className="text-sm text-text-muted">Loading…</p>
+      <div className="relative z-10 min-h-screen">
+        <PortalHeader />
+        <div className="flex items-center justify-center py-24">
+          <p className="text-sm text-text-muted">Loading…</p>
+        </div>
       </div>
     );
   }
   if (plan === null) {
     return (
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 text-center">
-        <p className="text-sm text-text-muted mb-4">This custom plan isn't available right now.</p>
-        <Link to="/album/plans" className="text-sm text-brand hover:underline">
-          Back to Plans
-        </Link>
+      <div className="relative z-10 min-h-screen">
+        <PortalHeader />
+        <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
+          <p className="text-sm text-text-muted mb-4">This custom plan isn't available right now.</p>
+          <Link to="/album/plans" className="text-sm text-brand hover:underline">
+            Back to Plans
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative z-10 min-h-screen px-6 py-10">
-      <div className="mx-auto max-w-4xl">
+    <div className="relative z-10 min-h-screen">
+      <PortalHeader />
+      <div className="mx-auto max-w-4xl px-6 py-10">
         <Link to="/album/plans" className="flex items-center gap-1 text-xs text-text-muted hover:text-text mb-6">
           <ArrowLeft size={12} /> Back to Plans
         </Link>

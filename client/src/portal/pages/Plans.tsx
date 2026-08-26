@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Sparkles, X as XIcon, QrCode, Cloud, Music, ShieldCheck, Tag, ArrowRight, Boxes } from 'lucide-react';
+import { Check, Sparkles, X as XIcon, QrCode, Cloud, Music, ShieldCheck, Tag, ArrowRight, Boxes } from 'lucide-react';
 import { customerApi } from '../lib/customerApi';
 import { useCustomerAuth } from '../CustomerAuthContext';
 import { openRazorpayCheckout } from '../lib/razorpayCheckout';
 import { formatPaise, formatDuration, type PhotoBookPlan } from '../../lib/api';
 import { getPlanIcon, getPlanColor } from '../../lib/planTheme';
+import PortalHeader from '../components/PortalHeader';
 
 interface CreateOrderResponse {
   orderId: number;
@@ -71,15 +72,9 @@ export default function PortalPlans() {
   const customPlan = plans?.find((p) => p.planType === 'CUSTOM');
 
   return (
-    <div className="relative z-10 min-h-screen px-6 py-10">
-      <div className="mx-auto max-w-6xl">
-        <Link
-          to={customer ? '/album/dashboard' : '/album'}
-          className="flex items-center gap-1 text-xs text-text-muted hover:text-text mb-6"
-        >
-          <ArrowLeft size={12} /> Back
-        </Link>
-
+    <div className="relative z-10 min-h-screen">
+      <PortalHeader />
+      <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="text-center mb-8">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand mb-4">
             <Sparkles size={12} /> Simple Pricing · No Hidden Costs
