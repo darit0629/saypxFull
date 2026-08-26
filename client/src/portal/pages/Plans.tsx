@@ -158,7 +158,12 @@ function FixedPlanCard({
   const active = tiers.find((t) => t.durationDays === selectedDuration) || tiers[0];
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 flex flex-col">
+    <div className={`rounded-2xl border bg-card p-6 flex flex-col ${plan.isFeatured ? 'border-brand' : 'border-border'}`}>
+      {plan.isFeatured && (
+        <span className="self-start mb-2 rounded-full gradient-brand px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+          Most Popular · Best Value
+        </span>
+      )}
       <p className="text-lg font-semibold mb-1">{plan.name}</p>
       <p className="text-sm text-text-muted mb-4">
         <span className="font-semibold text-text">{plan.credits.toLocaleString('en-IN')}</span> Digital Albums
@@ -207,16 +212,24 @@ function FixedPlanCard({
 
           <div className="rounded-lg bg-white/5 p-3 mb-2 text-xs space-y-0.5">
             <p>
-              You get: <span className="font-semibold text-text">{plan.credits.toLocaleString('en-IN')} Album Credits</span>
+              You receive: <span className="font-semibold text-text">{plan.credits.toLocaleString('en-IN')} Album Credits</span>
             </p>
             <p>
               Package validity: <span className="font-semibold text-text">{formatDuration(active.durationDays)}</span>
             </p>
             {active.discountPaise > 0 && (
-              <p>
-                You save: <span className="font-semibold text-emerald-400">{formatPaise(active.discountPaise)}</span>
-              </p>
+              <>
+                <p>
+                  Original Price: <span className="text-text line-through">{formatPaise(active.basePricePaise)}</span>
+                </p>
+                <p>
+                  Discount: <span className="font-semibold text-emerald-400">{formatPaise(active.discountPaise)}</span>
+                </p>
+              </>
             )}
+            <p>
+              You Pay: <span className="font-semibold text-text">{formatPaise(active.finalPricePaise)}</span>
+            </p>
           </div>
           <p className="text-[10px] text-text-muted mb-4">
             Longer plans give you more time at a better price. Your album credits remain the same.

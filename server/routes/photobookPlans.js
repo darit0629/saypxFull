@@ -19,6 +19,7 @@ function serializePlan(row) {
     durationOptions: JSON.parse(row.duration_options_json || '[]'),
     features: JSON.parse(row.features_json || '[]'),
     isActive: !!row.is_active,
+    isFeatured: !!row.is_featured,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -30,33 +31,57 @@ function serializePlan(row) {
 // ones, e.g. "2 years" / "3 years" with a bigger discount the longer the
 // customer commits).
 //
+// PRICING MODEL: the admin enters only `years` and the final customer price
+// per tier - base price and discount are always DERIVED, never entered:
+//   basePricePaise = parentBasePricePaise * years   (parent's own base price
+//                                                     IS the "1-year base price")
+//   discountPaise  = basePricePaise - finalPricePaise
+// This is a live relationship, not a snapshot: editing the parent's base
+// price re-derives every tier's base/discount next time this runs (see the
+// PATCH route's fallback path, and db.js's boot-time normalization pass).
+//
 // CORE BUSINESS RULE: every tier grants the SAME album credits as the parent
 // plan - a longer duration buys longer validity and a bigger discount, never
 // more credits. `credits` is therefore forced to `parentCredits` here
 // unconditionally - any credits value a caller sends is discarded, not just
-// validated, so this can never drift even if a client (admin UI, a future
-// API consumer, anything) tries to send something else. This is the single
-// place that decides what a tier's credits are; nothing downstream (order
-// creation, fulfillment) ever reads credits from a tier - see
-// customerOrders.js's resolveFixedTier, which deliberately only extracts
-// durationDays/finalPricePaise.
-function validateDurationOptions(raw, parentCredits) {
+// validated. This is the single place that decides what a tier's credits
+// are; nothing downstream (order creation, fulfillment) ever reads credits
+// from a tier - see customerOrders.js's resolveFixedTier, which deliberately
+// only extracts durationDays/finalPricePaise.
+function validateDurationOptions(raw, parentCredits, parentBasePricePaise) {
   if (raw === undefined) return undefined; // caller keeps existing value
   if (!Array.isArray(raw)) throw new Error('durationOptions must be an array');
   return raw.map((opt) => {
-    const durationDays = opt && opt.durationDays;
-    const basePricePaise = opt && opt.basePricePaise;
-    const discountPaise = Number.isInteger(opt && opt.discountPaise) && opt.discountPaise > 0 ? opt.discountPaise : 0;
-    if (!Number.isInteger(durationDays) || durationDays <= 0) throw new Error('Each duration option needs a positive whole number of days');
-    if (!Number.isInteger(basePricePaise) || basePricePaise < 0) throw new Error('Each duration option needs a base price');
-    if (discountPaise > basePricePaise) throw new Error('A duration option\'s discount cannot exceed its base price');
+    const years = opt && opt.years;
+    const finalPricePaise = opt && opt.finalPricePaise;
+    if (!Number.isInteger(years) || years <= 0) throw new Error('Each duration option needs a positive whole number of years');
+    if (!Number.isInteger(finalPricePaise) || finalPricePaise < 0) throw new Error('Each duration option needs a final price');
+    const basePricePaise = parentBasePricePaise * years;
+    const discountPaise = Math.max(0, basePricePaise - finalPricePaise);
     return {
-      durationDays,
+      years,
+      durationDays: years * 365,
       credits: parentCredits,
       basePricePaise,
       discountPaise,
-      finalPricePaise: Math.max(0, basePricePaise - discountPaise),
+      finalPricePaise,
     };
+  });
+}
+
+// Re-derives base/discount for tiers already on the plan (years/finalPrice
+// unchanged) against the plan's CURRENT base price/credits - used when a
+// request edits the plan's base price or credits without also resending
+// durationOptions, so tiers never keep stale numbers.
+function restampDurationOptions(existingJson, parentCredits, parentBasePricePaise) {
+  const tiers = JSON.parse(existingJson || '[]');
+  return tiers.map((t) => {
+    if (Number.isInteger(t.years) && t.years > 0) {
+      const basePricePaise = parentBasePricePaise * t.years;
+      const discountPaise = Math.max(0, basePricePaise - t.finalPricePaise);
+      return { ...t, credits: parentCredits, basePricePaise, discountPaise };
+    }
+    return { ...t, credits: parentCredits };
   });
 }
 
@@ -90,6 +115,7 @@ router.post('/', (req, res) => {
     durationDays,
     features,
     sortOrder,
+    isFeatured,
     // FIXED
     credits,
     basePricePaise,
@@ -124,7 +150,7 @@ router.post('/', (req, res) => {
 
   let resolvedDurationOptions;
   try {
-    resolvedDurationOptions = isCustom ? [] : validateDurationOptions(durationOptions, pricing.credits) || [];
+    resolvedDurationOptions = isCustom ? [] : validateDurationOptions(durationOptions, pricing.credits, pricing.basePricePaise) || [];
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -133,8 +159,8 @@ router.post('/', (req, res) => {
     .prepare(
       `INSERT INTO plans (
          name, plan_type, credits, duration_days, base_price_paise, discount_paise, final_price_paise,
-         min_credits, price_per_credit_paise, discount_per_credit_paise, duration_options_json, features_json, sort_order
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         min_credits, price_per_credit_paise, discount_per_credit_paise, duration_options_json, features_json, sort_order, is_featured
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name.trim(),
@@ -149,7 +175,8 @@ router.post('/', (req, res) => {
       isCustom ? pricing.discountPerCreditPaise : 0,
       JSON.stringify(resolvedDurationOptions),
       JSON.stringify(features || []),
-      sortOrder || 0
+      sortOrder || 0,
+      isFeatured ? 1 : 0
     );
 
   const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(result.lastInsertRowid);
@@ -166,6 +193,7 @@ router.patch('/:id', (req, res) => {
     durationDays,
     features,
     isActive,
+    isFeatured,
     sortOrder,
     credits,
     basePricePaise,
@@ -198,16 +226,16 @@ router.patch('/:id', (req, res) => {
     pricing = { credits: nextCredits, basePricePaise: nextBasePrice, discountPaise: nextDiscount, finalPricePaise: Math.max(0, nextBasePrice - nextDiscount) };
   }
 
-  // If the plan's own credits changed but durationOptions wasn't touched in
-  // this request, re-stamp every existing tier's credits to match - a tier
-  // must never keep displaying a stale credits figure after the plan's
-  // credits are edited.
+  // If durationOptions wasn't sent in this request, re-derive the existing
+  // tiers' credits/base/discount against the (possibly just-changed) plan
+  // credits/base price instead of leaving them untouched - a tier must
+  // never keep displaying stale numbers after the parent plan is edited.
   let resolvedDurationOptions;
   try {
     resolvedDurationOptions = isCustom
       ? []
-      : validateDurationOptions(durationOptions, pricing.credits) ??
-        JSON.parse(existing.duration_options_json || '[]').map((t) => ({ ...t, credits: pricing.credits }));
+      : validateDurationOptions(durationOptions, pricing.credits, pricing.basePricePaise) ??
+        restampDurationOptions(existing.duration_options_json, pricing.credits, pricing.basePricePaise);
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -227,6 +255,7 @@ router.patch('/:id', (req, res) => {
       duration_options_json = ?,
       features_json = COALESCE(?, features_json),
       is_active = COALESCE(?, is_active),
+      is_featured = COALESCE(?, is_featured),
       sort_order = COALESCE(?, sort_order),
       updated_at = unixepoch() * 1000
     WHERE id = ?`
@@ -244,6 +273,7 @@ router.patch('/:id', (req, res) => {
     JSON.stringify(resolvedDurationOptions),
     features ? JSON.stringify(features) : null,
     typeof isActive === 'boolean' ? (isActive ? 1 : 0) : null,
+    typeof isFeatured === 'boolean' ? (isFeatured ? 1 : 0) : null,
     Number.isInteger(sortOrder) ? sortOrder : null,
     req.params.id
   );

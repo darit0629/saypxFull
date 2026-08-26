@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Package, Plus, X, Lock } from 'lucide-react';
+import { Package, Plus, X, Lock, Star } from 'lucide-react';
 import { api, formatPaise, formatDuration, monthsToDays, daysToMonths, type PhotoBookPlan, type PlanType } from '../../lib/api';
 import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
 
@@ -57,10 +57,15 @@ export default function Plans() {
             <button
               key={p.id}
               onClick={() => setDialogPlan(p)}
-              className="rounded-xl border border-border bg-card p-4 text-left hover:border-brand/40 transition-colors"
+              className={`rounded-xl border bg-card p-4 text-left hover:border-brand/40 transition-colors ${
+                p.isFeatured ? 'border-brand' : 'border-border'
+              }`}
             >
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="font-medium">{p.name}</p>
+                <p className="font-medium flex items-center gap-1.5">
+                  {p.name}
+                  {p.isFeatured && <Star size={13} className="fill-brand text-brand" />}
+                </p>
                 <span
                   className={`shrink-0 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
                     p.isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/10 text-text-muted'
@@ -126,7 +131,11 @@ export default function Plans() {
   );
 }
 
-type Tier = { months: string; basePrice: string; discount: string };
+// The admin enters only years + the final customer price; basePricePaise and
+// discountPaise are always derived server-side (base = parent's 1-year base
+// price * years, discount = base - final) - see photobookPlans.js. This
+// local shape mirrors exactly what gets sent, nothing more.
+type Tier = { years: string; finalPrice: string };
 
 function PlanDialog({
   plan,
@@ -142,6 +151,7 @@ function PlanDialog({
   const [name, setName] = useState(plan?.name || '');
   const [planType, setPlanType] = useState<PlanType>(plan?.planType || 'FIXED');
   const [durationMonths, setDurationMonths] = useState(String(plan ? daysToMonths(plan.durationDays) : '12'));
+  const [isFeatured, setIsFeatured] = useState(plan?.isFeatured || false);
 
   // FIXED
   const [credits, setCredits] = useState(String(plan?.credits ?? ''));
@@ -149,18 +159,10 @@ function PlanDialog({
   const [discount, setDiscount] = useState(String(plan && plan.planType !== 'CUSTOM' ? plan.discountPaise / 100 : '0'));
   const [tiers, setTiers] = useState<Tier[]>(
     (plan?.durationOptions || []).map((o) => ({
-      months: String(daysToMonths(o.durationDays)),
-      basePrice: String(o.basePricePaise / 100),
-      discount: String(o.discountPaise / 100),
+      years: String(o.years),
+      finalPrice: String(o.finalPricePaise / 100),
     }))
   );
-
-  // Auto-generator for longer duration tiers - a convenience that fills in
-  // `tiers` above (still hand-editable afterward), not a separate concept
-  // the backend knows about.
-  const [autoUpToYears, setAutoUpToYears] = useState('3');
-  const [autoDiscountMode, setAutoDiscountMode] = useState<'PERCENT' | 'FLAT'>('PERCENT');
-  const [autoDiscountPerYear, setAutoDiscountPerYear] = useState('5');
 
   // CUSTOM
   const [minCredits, setMinCredits] = useState(String(plan?.minCredits ?? ''));
@@ -173,32 +175,7 @@ function PlanDialog({
   const isCustom = planType === 'CUSTOM';
   const finalPrice = Math.max(0, (Number(basePrice) || 0) - (Number(discount) || 0));
   const effectivePerCredit = Math.max(0, (Number(pricePerCredit) || 0) - (Number(discountPerCredit) || 0));
-
-  // More time period -> more discount: each generated tier's discount scales
-  // with how many years out it is. Base price scales linearly with duration
-  // from the plan's own base price/duration, then the escalating discount
-  // (money or %, admin's choice) is subtracted on top.
-  function handleAutoGenerate() {
-    const baseMonths = Number(durationMonths) || 0;
-    const baseP = Number(basePrice) || 0;
-    const upToYears = parseInt(autoUpToYears, 10);
-    const perYear = Number(autoDiscountPerYear) || 0;
-    if (baseMonths <= 0 || baseP <= 0 || !Number.isInteger(upToYears) || upToYears <= 0) {
-      setError('Fill in duration, base price, and "up to N years" first');
-      return;
-    }
-    setError(null);
-    const generated: Tier[] = [];
-    for (let year = 1; year <= upToYears; year++) {
-      const months = year * 12;
-      if (months <= baseMonths) continue; // never generate a tier shorter than/equal to the base
-      const tierBase = Math.round(baseP * (months / baseMonths));
-      const tierDiscount =
-        autoDiscountMode === 'PERCENT' ? Math.round((tierBase * (perYear * year)) / 100) : Math.round(perYear * year);
-      generated.push({ months: String(months), basePrice: String(tierBase), discount: String(Math.min(tierDiscount, tierBase)) });
-    }
-    setTiers(generated);
-  }
+  const oneYearBasePrice = Number(basePrice) || 0;
 
   async function handleSubmit() {
     setSaving(true);
@@ -208,6 +185,7 @@ function PlanDialog({
         name,
         planType,
         durationDays: monthsToDays(Number(durationMonths) || 0),
+        isFeatured,
       };
       if (isCustom) {
         body.minCredits = parseInt(minCredits, 10);
@@ -218,14 +196,8 @@ function PlanDialog({
         body.basePricePaise = Math.round(Number(basePrice) * 100);
         body.discountPaise = Math.round(Number(discount || 0) * 100);
         body.durationOptions = tiers.map((t) => ({
-          durationDays: monthsToDays(Number(t.months) || 0),
-          // Always the base plan's own credits - the server re-enforces this
-          // regardless of what's sent, but sending it correctly here too
-          // keeps the payload self-documenting rather than relying solely
-          // on server-side normalization.
-          credits: parseInt(credits, 10),
-          basePricePaise: Math.round(Number(t.basePrice) * 100),
-          discountPaise: Math.round(Number(t.discount || 0) * 100),
+          years: parseInt(t.years, 10),
+          finalPricePaise: Math.round(Number(t.finalPrice) * 100),
         }));
       }
       if (plan) await api.patch(`/api/photobook/plans/${plan.id}`, body);
@@ -265,6 +237,11 @@ function PlanDialog({
               placeholder="e.g. Starter — 50 Albums"
             />
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-text-muted">
+            <input type="checkbox" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="accent-brand" />
+            Mark as "Most Popular" / "Best Value"
+          </label>
 
           <div>
             <label className="block text-[10px] text-text-muted mb-1">Plan Type</label>
@@ -364,7 +341,7 @@ function PlanDialog({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Base Price (₹)</label>
+                  <label className="block text-[10px] text-text-muted mb-1">1-Year Base Price (₹)</label>
                   <input
                     type="number"
                     className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
@@ -386,115 +363,56 @@ function PlanDialog({
                 Customer pays: <span className="font-semibold text-text">₹{finalPrice.toLocaleString('en-IN')}</span>
               </p>
 
-              <div className="rounded-lg border border-border p-3 space-y-2.5">
-                <p className="text-[10px] text-text-muted uppercase">Auto-Generate Longer Durations</p>
-                <p className="text-[11px] text-text-muted">
-                  Fills in yearly tiers beyond the base duration above (e.g. enter 6 months above → generates 1, 2, 3 years),
-                  each with a bigger discount the longer it runs and the same {credits || 0} Album Credits as the base plan.
-                  Still hand-editable below afterward - these are just starting numbers, not a fixed formula.
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-text-muted mb-1">Up to (years)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                      value={autoUpToYears}
-                      onChange={(e) => setAutoUpToYears(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-text-muted mb-1">Discount / year</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                      value={autoDiscountPerYear}
-                      onChange={(e) => setAutoDiscountPerYear(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-text-muted mb-1">Unit</label>
-                    <div className="flex rounded-lg border border-border overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAutoDiscountMode('PERCENT')}
-                        className={`flex-1 py-1.5 text-xs font-semibold ${autoDiscountMode === 'PERCENT' ? 'gradient-brand' : 'text-text-muted hover:bg-white/5'}`}
-                      >
-                        %
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAutoDiscountMode('FLAT')}
-                        className={`flex-1 py-1.5 text-xs font-semibold ${autoDiscountMode === 'FLAT' ? 'gradient-brand' : 'text-text-muted hover:bg-white/5'}`}
-                      >
-                        ₹
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAutoGenerate}
-                  className="w-full rounded-lg border border-brand/40 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
-                >
-                  Generate Tiers
-                </button>
-              </div>
-
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-[10px] text-text-muted uppercase">Extra Duration Options</label>
                   <button
                     type="button"
-                    onClick={() => setTiers((t) => [...t, { months: '', basePrice, discount: '0' }])}
+                    onClick={() => setTiers((t) => [...t, { years: '', finalPrice: '' }])}
                     className="text-[11px] text-brand hover:underline"
                   >
                     + Add Duration
                   </button>
                 </div>
                 <p className="text-[11px] text-text-muted mb-2">
-                  Every duration grants the same <span className="font-semibold text-text">{credits || 0} Album Credits</span> as
-                  above - a longer duration only changes validity and price, never how many credits the customer gets.
+                  Enter years and the final price a customer pays - base price and discount are calculated automatically as{' '}
+                  <span className="font-semibold text-text">1-Year Base Price × Years</span>. Every duration grants the same{' '}
+                  <span className="font-semibold text-text">{credits || 0} Album Credits</span> as above.
                 </p>
                 {tiers.length === 0 ? (
                   <p className="text-[11px] text-text-muted">
                     None yet - customer only sees the {formatDuration(monthsToDays(Number(durationMonths) || 0))} duration above.
-                    Generate some above, or add one manually, to let them choose a longer commitment for a bigger discount.
+                    Add one to let them choose a longer commitment for a bigger discount.
                   </p>
                 ) : (
                   <div className="space-y-2">
                     {tiers.map((t, i) => {
-                      const tierFinal = Math.max(0, (Number(t.basePrice) || 0) - (Number(t.discount) || 0));
+                      const years = Number(t.years) || 0;
+                      const finalP = Number(t.finalPrice) || 0;
+                      const tierBase = oneYearBasePrice * years;
+                      const tierDiscount = Math.max(0, tierBase - finalP);
                       return (
                         <div key={i} className="rounded-lg border border-border p-2 space-y-1.5">
                           <div className="flex items-center gap-2">
-                            <div className="w-20 shrink-0">
+                            <div className="w-16 shrink-0">
                               <input
                                 type="number"
-                                placeholder="Months"
+                                placeholder="Years"
+                                min={1}
                                 className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                                value={t.months}
-                                onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, months: e.target.value } : x)))}
+                                value={t.years}
+                                onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, years: e.target.value } : x)))}
                               />
-                              <p className="text-[9px] text-text-muted mt-0.5 truncate">{formatDuration(monthsToDays(Number(t.months) || 0))}</p>
                             </div>
-                            <input
-                              type="number"
-                              placeholder="Base ₹"
-                              className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                              value={t.basePrice}
-                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, basePrice: e.target.value } : x)))}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Discount ₹"
-                              className="w-20 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
-                              value={t.discount}
-                              onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, discount: e.target.value } : x)))}
-                            />
-                            <span className="flex-1 text-right text-[11px] text-text-muted">₹{tierFinal.toLocaleString('en-IN')}</span>
+                            <div className="flex-1">
+                              <input
+                                type="number"
+                                placeholder="Final Price ₹"
+                                className="w-full rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                                value={t.finalPrice}
+                                onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, finalPrice: e.target.value } : x)))}
+                              />
+                            </div>
                             <button
                               type="button"
                               onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))}
@@ -504,9 +422,17 @@ function PlanDialog({
                               <X size={14} />
                             </button>
                           </div>
-                          <p className="flex items-center gap-1 text-[10px] text-text-muted">
-                            <Lock size={9} /> {credits || 0} Album Credits (locked - same as the base plan)
-                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-[10px] text-text-muted">
+                            <p>
+                              Base: <span className="text-text">₹{tierBase.toLocaleString('en-IN')}</span> <span className="opacity-60">(calc)</span>
+                            </p>
+                            <p>
+                              Discount: <span className="text-text">₹{tierDiscount.toLocaleString('en-IN')}</span> <span className="opacity-60">(calc)</span>
+                            </p>
+                            <p className="flex items-center gap-1">
+                              <Lock size={9} /> {credits || 0} credits
+                            </p>
+                          </div>
                         </div>
                       );
                     })}

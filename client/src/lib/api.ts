@@ -253,6 +253,10 @@ export interface PhotoBookCustomer {
 export type PlanType = 'FIXED' | 'CUSTOM';
 
 export interface PlanDurationOption {
+  // Admin enters `years` and `finalPricePaise`; basePricePaise/discountPaise
+  // are always derived server-side (base = parent's own basePricePaise *
+  // years, discount = base - final), never independently entered.
+  years: number;
   durationDays: number;
   // Always equal to the parent plan's own `credits` - a longer duration
   // tier never grants more album credits, only longer validity at a
@@ -279,6 +283,7 @@ export interface PhotoBookPlan {
   durationOptions: PlanDurationOption[];
   features: string[];
   isActive: boolean;
+  isFeatured: boolean;
   sortOrder: number;
   createdAt: number;
   updatedAt: number;

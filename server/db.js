@@ -388,16 +388,25 @@ if (creditTxSchema && !creditTxSchema.sql.includes('CREDIT_TOPUP')) {
   })();
 }
 
+// "Most Popular" / "Best Value" ribbon - cosmetic only, no pricing/credits
+// logic depends on it.
+if (!planColumns.includes('is_featured')) {
+  db.exec('ALTER TABLE plans ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0');
+}
+
 // Safety net for the core business rule "longer duration never means more
-// credits": duration_options_json tiers now always carry an explicit
-// `credits` field (see photobookPlans.js), forced equal to the parent
-// plan's own credits at write time. This re-stamps every existing plan's
-// stored tiers to match on every boot, in case any tier was ever written
-// before that field existed or somehow drifted - cheap (plan count is
-// small) and a no-op once everything already matches, so it's safe to just
-// always run rather than track whether it's needed.
+// credits, and a tier's price is always base(1yr) * years - discount, never
+// independently entered": duration_options_json tiers carry `credits`
+// (forced equal to the parent plan's own credits) and, for tiers using the
+// formula-driven model, `years`/`basePricePaise`/`discountPaise` derived
+// from the PARENT's *current* base price - so editing the parent's 1-year
+// base price re-derives every tier's base/discount on the next write. This
+// re-stamps every existing plan's stored tiers to match on every boot, in
+// case a tier was ever written before these fields existed, or the parent's
+// base price changed without touching durationOptions in that request -
+// cheap (plan count is small) and a no-op once everything matches.
 {
-  const plans = db.prepare("SELECT id, credits, duration_options_json FROM plans WHERE plan_type = 'FIXED' OR plan_type IS NULL").all();
+  const plans = db.prepare("SELECT id, credits, base_price_paise, duration_options_json FROM plans WHERE plan_type = 'FIXED' OR plan_type IS NULL").all();
   const restamp = db.prepare('UPDATE plans SET duration_options_json = ? WHERE id = ?');
   for (const p of plans) {
     let tiers;
@@ -407,9 +416,16 @@ if (creditTxSchema && !creditTxSchema.sql.includes('CREDIT_TOPUP')) {
       tiers = [];
     }
     if (!Array.isArray(tiers) || tiers.length === 0) continue;
-    const needsFix = tiers.some((t) => t.credits !== p.credits);
-    if (needsFix) {
-      restamp.run(JSON.stringify(tiers.map((t) => ({ ...t, credits: p.credits }))), p.id);
+    const fixed = tiers.map((t) => {
+      if (Number.isInteger(t.years) && t.years > 0) {
+        const basePricePaise = p.base_price_paise * t.years;
+        const discountPaise = Math.max(0, basePricePaise - t.finalPricePaise);
+        return { ...t, credits: p.credits, basePricePaise, discountPaise };
+      }
+      return { ...t, credits: p.credits };
+    });
+    if (JSON.stringify(fixed) !== JSON.stringify(tiers)) {
+      restamp.run(JSON.stringify(fixed), p.id);
     }
   }
 }
