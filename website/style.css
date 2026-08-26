@@ -1162,6 +1162,25 @@ img {
   background-color: rgba(255, 107, 53, 0.15);
 }
 
+/* Filled brand-gradient pill - the one nav item meant to draw the eye as a
+   product CTA rather than a same-page scroll link or a plain outline. */
+.nav-link-highlight {
+  padding: var(--space-6) var(--space-16);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  background: linear-gradient(135deg, var(--brand-orange) 0%, var(--brand-deep-orange) 100%);
+  color: #fff !important;
+}
+
+.nav-link-highlight::after {
+  display: none;
+}
+
+.nav-link-highlight:hover {
+  filter: brightness(1.1);
+  color: #fff !important;
+}
+
 .nav-toggle {
   display: none;
   flex-direction: column;
