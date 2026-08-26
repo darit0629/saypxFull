@@ -1,4 +1,4 @@
-import { Rocket, Sprout, Camera, Star, Gem, Briefcase, Crown, Package, type LucideIcon } from 'lucide-react';
+import { Rocket, Sprout, Camera, Star, Gem, Briefcase, Crown, Package, Building2, type LucideIcon } from 'lucide-react';
 
 // Cosmetic-only plan presentation (icon + color) - a curated set so the
 // admin picks from a small list rather than typing anything, and so
@@ -13,6 +13,7 @@ export const PLAN_ICON_OPTIONS: { key: string; label: string; Icon: LucideIcon }
   { key: 'briefcase', label: 'Briefcase', Icon: Briefcase },
   { key: 'crown', label: 'Crown', Icon: Crown },
   { key: 'package', label: 'Package', Icon: Package },
+  { key: 'building2', label: 'Building', Icon: Building2 },
 ];
 
 export function getPlanIcon(key: string | null): LucideIcon {
@@ -35,6 +36,7 @@ const COLOR_MAP: Record<string, PlanColorClasses> = {
   orange: { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/40', check: 'text-orange-400', buttonOutline: 'border-orange-500/50 text-orange-300 hover:bg-orange-500/10' },
   pink: { bg: 'bg-pink-500/15', text: 'text-pink-400', border: 'border-pink-500/40', check: 'text-pink-400', buttonOutline: 'border-pink-500/50 text-pink-300 hover:bg-pink-500/10' },
   violet: { bg: 'bg-violet-500/15', text: 'text-violet-400', border: 'border-violet-500/40', check: 'text-violet-400', buttonOutline: 'border-violet-500/50 text-violet-300 hover:bg-violet-500/10' },
+  red: { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/40', check: 'text-red-400', buttonOutline: 'border-red-500/50 text-red-300 hover:bg-red-500/10' },
 };
 
 export const PLAN_COLOR_OPTIONS = Object.keys(COLOR_MAP);
