@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import Login from './pages/Login';
 import LockScreen from './components/LockScreen';
@@ -39,8 +39,16 @@ import PortalOrders from './portal/pages/Orders';
 function CustomerProtectedRoutes() {
   const { customer, loading } = useCustomerAuth();
   if (loading) return <div className="min-h-screen bg-bg" />;
-  if (!customer) return <Navigate to="/portal/login" replace />;
+  if (!customer) return <Navigate to="/album/login" replace />;
   return <Outlet />;
+}
+
+// saypx.in/portal was the customer portal's URL for less than a day before
+// moving to /album - preserves the path/query/hash so an already-shared
+// /portal/dashboard?x=1 link still lands somewhere sensible instead of 404ing.
+function PortalUrlRedirect() {
+  const { pathname, search, hash } = useLocation();
+  return <Navigate to={pathname.replace(/^\/portal/, '/album') + search + hash} replace />;
 }
 
 function ProtectedRoutes() {
@@ -109,14 +117,17 @@ export default function App() {
               </CustomerAuthProvider>
             }
           >
-            <Route path="/portal" element={<PortalLanding />} />
-            <Route path="/portal/login" element={<PortalLogin />} />
-            <Route path="/portal/signup" element={<PortalSignup />} />
-            <Route path="/portal/plans" element={<PortalPlans />} />
+            <Route path="/album" element={<PortalLanding />} />
+            <Route path="/album/login" element={<PortalLogin />} />
+            <Route path="/album/signup" element={<PortalSignup />} />
+            <Route path="/album/plans" element={<PortalPlans />} />
             <Route element={<CustomerProtectedRoutes />}>
-              <Route path="/portal/dashboard" element={<PortalDashboard />} />
-              <Route path="/portal/orders" element={<PortalOrders />} />
+              <Route path="/album/dashboard" element={<PortalDashboard />} />
+              <Route path="/album/orders" element={<PortalOrders />} />
             </Route>
+            {/* saypx.in/portal was the URL for less than a day before moving to
+                /album - redirect any already-shared link instead of 404ing. */}
+            <Route path="/portal/*" element={<PortalUrlRedirect />} />
           </Route>
         </Routes>
       </AuthProvider>

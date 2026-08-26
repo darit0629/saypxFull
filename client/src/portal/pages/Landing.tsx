@@ -13,17 +13,17 @@ export default function PortalLanding() {
         shareable QR codes.
       </p>
       <div className="flex items-center gap-3">
-        <Link to="/portal/signup" className="rounded-lg gradient-brand px-5 py-2.5 text-sm font-semibold">
+        <Link to="/album/signup" className="rounded-lg gradient-brand px-5 py-2.5 text-sm font-semibold">
           Get Started
         </Link>
         <Link
-          to="/portal/login"
+          to="/album/login"
           className="rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-text-muted hover:bg-white/5"
         >
           Log In
         </Link>
       </div>
-      <Link to="/portal/plans" className="mt-4 text-xs text-text-muted hover:text-brand hover:underline">
+      <Link to="/album/plans" className="mt-4 text-xs text-text-muted hover:text-brand hover:underline">
         View pricing
       </Link>
     </div>

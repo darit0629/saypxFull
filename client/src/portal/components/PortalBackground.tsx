@@ -1,4 +1,4 @@
-// Fixed, full-viewport animated backdrop shared by every /portal/* page -
+// Fixed, full-viewport animated backdrop shared by every /album/* page -
 // rendered once at the router level (App.tsx) rather than per-page, so it
 // never restarts/flickers on navigation between portal routes.
 export default function PortalBackground() {

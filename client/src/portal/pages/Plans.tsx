@@ -67,7 +67,7 @@ export default function PortalPlans() {
         handler: async (response) => {
           try {
             await customerApi.post(`/api/customer/orders/${order.orderId}/verify`, response);
-            navigate('/portal/dashboard', { replace: true });
+            navigate('/album/dashboard', { replace: true });
           } catch (e) {
             setError(e instanceof Error ? e.message : 'Payment verification failed');
             setBuyingPlanId(null);
@@ -85,7 +85,7 @@ export default function PortalPlans() {
     <div className="relative z-10 min-h-screen px-6 py-10">
       <div className="mx-auto max-w-4xl">
         <Link
-          to={customer ? '/portal/dashboard' : '/portal'}
+          to={customer ? '/album/dashboard' : '/album'}
           className="flex items-center gap-1 text-xs text-text-muted hover:text-text mb-4"
         >
           <ArrowLeft size={12} /> Back
@@ -241,7 +241,7 @@ function FixedPlanCard({
           {buying ? 'Opening Checkout…' : 'Buy Package'}
         </button>
       ) : (
-        <Link to="/portal/signup" className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold">
+        <Link to="/album/signup" className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold">
           Sign Up to Get Started
         </Link>
       )}
@@ -317,7 +317,7 @@ function CustomPlanCard({
           {buying ? 'Opening Checkout…' : 'Buy Package'}
         </button>
       ) : (
-        <Link to="/portal/signup" className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold">
+        <Link to="/album/signup" className="mt-auto block rounded-lg gradient-brand py-2.5 text-center text-sm font-semibold">
           Sign Up to Get Started
         </Link>
       )}

@@ -1,11 +1,11 @@
 // Mirrors client/src/lib/api.ts's conventions, but scoped to the customer portal:
-// separate 401 handling (redirects to /portal/login, not /login) since customer
+// separate 401 handling (redirects to /album/login, not /login) since customer
 // sessions use their own cookie namespace, entirely independent of the admin app.
 function handleUnauthorized(url: string, status: number) {
   if (status !== 401) return;
   if (url === '/api/customer/auth/me' || url === '/api/customer/auth/login') return;
-  if (window.location.pathname === '/portal/login') return;
-  window.location.href = '/portal/login';
+  if (window.location.pathname === '/album/login') return;
+  window.location.href = '/album/login';
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {

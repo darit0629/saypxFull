@@ -19,7 +19,7 @@ export default function PortalLogin() {
     if (err) {
       setError(err);
     } else {
-      navigate('/portal/dashboard', { replace: true });
+      navigate('/album/dashboard', { replace: true });
     }
   }
 
@@ -70,7 +70,7 @@ export default function PortalLogin() {
 
         <p className="mt-5 text-center text-xs text-text-muted">
           New here?{' '}
-          <Link to="/portal/signup" className="text-brand hover:underline">
+          <Link to="/album/signup" className="text-brand hover:underline">
             Create an account
           </Link>
         </p>

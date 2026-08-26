@@ -75,13 +75,13 @@ export default function PortalDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to="/portal/plans"
+            to="/album/plans"
             className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
           >
             Plans
           </Link>
           <Link
-            to="/portal/orders"
+            to="/album/orders"
             className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:bg-white/5"
           >
             Orders
@@ -106,7 +106,7 @@ export default function PortalDashboard() {
             <PackageX size={32} className="mx-auto mb-3 text-text-muted" />
             <p className="text-sm font-medium mb-1">No Active Package Yet</p>
             <p className="text-sm text-text-muted mb-4">Choose a package to start creating digital photo books.</p>
-            <Link to="/portal/plans" className="inline-block rounded-lg gradient-brand px-4 py-2 text-sm font-semibold">
+            <Link to="/album/plans" className="inline-block rounded-lg gradient-brand px-4 py-2 text-sm font-semibold">
               View Plans
             </Link>
           </div>
