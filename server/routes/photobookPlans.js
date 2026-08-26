@@ -20,6 +20,9 @@ function serializePlan(row) {
     customDurationOptions: JSON.parse(row.custom_duration_options_json || '[]'),
     durationOptions: JSON.parse(row.duration_options_json || '[]'),
     features: JSON.parse(row.features_json || '[]'),
+    tagline: row.tagline || null,
+    icon: row.icon || null,
+    themeColor: row.theme_color || null,
     isActive: !!row.is_active,
     isFeatured: !!row.is_featured,
     sortOrder: row.sort_order,
@@ -137,6 +140,9 @@ router.post('/', (req, res) => {
     features,
     sortOrder,
     isFeatured,
+    tagline,
+    icon,
+    themeColor,
     // FIXED
     credits,
     basePricePaise,
@@ -189,8 +195,8 @@ router.post('/', (req, res) => {
       `INSERT INTO plans (
          name, plan_type, credits, duration_days, base_price_paise, discount_paise, final_price_paise,
          min_credits, max_credits, price_per_credit_paise, discount_per_credit_paise, duration_options_json,
-         custom_duration_options_json, features_json, sort_order, is_featured
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         custom_duration_options_json, features_json, sort_order, is_featured, tagline, icon, theme_color
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name.trim(),
@@ -208,7 +214,10 @@ router.post('/', (req, res) => {
       JSON.stringify(isCustom ? resolvedCustomDurationOptions : []),
       JSON.stringify(features || []),
       sortOrder || 0,
-      isFeatured ? 1 : 0
+      isFeatured ? 1 : 0,
+      tagline || null,
+      icon || null,
+      themeColor || null
     );
 
   const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(result.lastInsertRowid);
@@ -227,6 +236,9 @@ router.patch('/:id', (req, res) => {
     isActive,
     isFeatured,
     sortOrder,
+    tagline,
+    icon,
+    themeColor,
     credits,
     basePricePaise,
     discountPaise,
@@ -300,6 +312,9 @@ router.patch('/:id', (req, res) => {
       is_active = COALESCE(?, is_active),
       is_featured = COALESCE(?, is_featured),
       sort_order = COALESCE(?, sort_order),
+      tagline = COALESCE(?, tagline),
+      icon = COALESCE(?, icon),
+      theme_color = COALESCE(?, theme_color),
       updated_at = unixepoch() * 1000
     WHERE id = ?`
   ).run(
@@ -319,6 +334,9 @@ router.patch('/:id', (req, res) => {
     typeof isActive === 'boolean' ? (isActive ? 1 : 0) : null,
     typeof isFeatured === 'boolean' ? (isFeatured ? 1 : 0) : null,
     Number.isInteger(sortOrder) ? sortOrder : null,
+    tagline || null,
+    icon || null,
+    themeColor || null,
     req.params.id
   );
 

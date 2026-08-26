@@ -34,6 +34,7 @@ import PortalLogin from './portal/pages/Login';
 import PortalSignup from './portal/pages/Signup';
 import PortalDashboard from './portal/pages/Dashboard';
 import PortalPlans from './portal/pages/Plans';
+import CustomPlanBuilder from './portal/pages/CustomPlanBuilder';
 import PortalOrders from './portal/pages/Orders';
 
 function CustomerProtectedRoutes() {
@@ -121,6 +122,7 @@ export default function App() {
             <Route path="/album/login" element={<PortalLogin />} />
             <Route path="/album/signup" element={<PortalSignup />} />
             <Route path="/album/plans" element={<PortalPlans />} />
+            <Route path="/album/custom/:planId" element={<CustomPlanBuilder />} />
             <Route element={<CustomerProtectedRoutes />}>
               <Route path="/album/dashboard" element={<PortalDashboard />} />
               <Route path="/album/orders" element={<PortalOrders />} />

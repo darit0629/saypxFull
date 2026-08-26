@@ -293,6 +293,11 @@ export interface PhotoBookPlan {
   customDurationOptions: CustomDurationOption[];
   durationOptions: PlanDurationOption[];
   features: string[];
+  // Cosmetic only - short subtitle, a curated icon key, a curated color key.
+  // Never affects pricing/credits/entitlement.
+  tagline: string | null;
+  icon: string | null;
+  themeColor: string | null;
   isActive: boolean;
   isFeatured: boolean;
   sortOrder: number;

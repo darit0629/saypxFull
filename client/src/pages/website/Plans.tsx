@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Package, Plus, X, Lock, Star } from 'lucide-react';
 import { api, formatPaise, formatDuration, monthsToDays, daysToMonths, type PhotoBookPlan, type PlanType } from '../../lib/api';
 import PhotoBookSubNav from '../../components/website/PhotoBookSubNav';
+import { PLAN_ICON_OPTIONS, PLAN_COLOR_OPTIONS, getPlanIcon, getPlanColor } from '../../lib/planTheme';
 
 export default function Plans() {
   const [plans, setPlans] = useState<PhotoBookPlan[]>([]);
@@ -53,7 +54,10 @@ export default function Plans() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plans.map((p) => (
+          {plans.map((p) => {
+            const Icon = getPlanIcon(p.icon);
+            const color = getPlanColor(p.themeColor);
+            return (
             <button
               key={p.id}
               onClick={() => setDialogPlan(p)}
@@ -63,6 +67,9 @@ export default function Plans() {
             >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="font-medium flex items-center gap-1.5">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${color.bg}`}>
+                    <Icon size={13} className={color.text} />
+                  </span>
                   {p.name}
                   {p.isFeatured && <Star size={13} className="fill-brand text-brand" />}
                 </p>
@@ -74,6 +81,7 @@ export default function Plans() {
                   {p.isActive ? 'Active' : 'Disabled'}
                 </span>
               </div>
+              {p.tagline && <p className="text-[11px] text-text-muted -mt-1 mb-1.5">{p.tagline}</p>}
               {p.planType === 'CUSTOM' ? (
                 <>
                   <p className="text-2xl font-semibold mb-1">
@@ -115,7 +123,8 @@ export default function Plans() {
                 </>
               )}
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -160,6 +169,10 @@ function PlanDialog({
   const [planType, setPlanType] = useState<PlanType>(plan?.planType || 'FIXED');
   const [durationMonths, setDurationMonths] = useState(String(plan ? daysToMonths(plan.durationDays) : '12'));
   const [isFeatured, setIsFeatured] = useState(plan?.isFeatured || false);
+  const [tagline, setTagline] = useState(plan?.tagline || '');
+  const [icon, setIcon] = useState(plan?.icon || PLAN_ICON_OPTIONS[0].key);
+  const [themeColor, setThemeColor] = useState(plan?.themeColor || PLAN_COLOR_OPTIONS[0]);
+  const [features, setFeatures] = useState<string[]>(plan?.features || []);
 
   // FIXED
   const [credits, setCredits] = useState(String(plan?.credits ?? ''));
@@ -199,6 +212,10 @@ function PlanDialog({
         planType,
         durationDays: monthsToDays(Number(durationMonths) || 0),
         isFeatured,
+        tagline: tagline.trim() || null,
+        icon,
+        themeColor,
+        features,
       };
       if (isCustom) {
         body.minCredits = parseInt(minCredits, 10);
@@ -259,6 +276,89 @@ function PlanDialog({
             <input type="checkbox" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="accent-brand" />
             Mark as "Most Popular" / "Best Value"
           </label>
+
+          <div>
+            <label className="block text-[10px] text-text-muted mb-1">Tagline (optional)</label>
+            <input
+              className="w-full rounded-lg border border-border bg-[#171921] px-3 py-2 text-sm outline-none focus:border-brand"
+              value={tagline}
+              onChange={(e) => setTagline(e.target.value)}
+              placeholder="e.g. For Growing Photographers"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] text-text-muted mb-1">Icon</label>
+              <div className="flex flex-wrap gap-1.5">
+                {PLAN_ICON_OPTIONS.map(({ key, label, Icon: OptIcon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setIcon(key)}
+                    aria-label={label}
+                    title={label}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
+                      icon === key ? 'border-brand bg-brand/15 text-brand' : 'border-border text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    <OptIcon size={15} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-text-muted mb-1">Color</label>
+              <div className="flex flex-wrap gap-1.5">
+                {PLAN_COLOR_OPTIONS.map((key) => {
+                  const c = getPlanColor(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setThemeColor(key)}
+                      aria-label={key}
+                      title={key}
+                      className={`h-8 w-8 rounded-lg border-2 ${c.bg} ${themeColor === key ? 'border-text' : 'border-transparent'}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] text-text-muted uppercase">Feature Checklist</label>
+              <button type="button" onClick={() => setFeatures((f) => [...f, ''])} className="text-[11px] text-brand hover:underline">
+                + Add Feature
+              </button>
+            </div>
+            {features.length === 0 ? (
+              <p className="text-[11px] text-text-muted">None yet - shown as a checklist on the customer-facing card.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {features.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className="flex-1 rounded-lg border border-border bg-[#171921] px-2 py-1.5 text-xs outline-none focus:border-brand"
+                      value={f}
+                      onChange={(e) => setFeatures((fs) => fs.map((x, j) => (j === i ? e.target.value : x)))}
+                      placeholder="e.g. QR Code Sharing"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFeatures((fs) => fs.filter((_, j) => j !== i))}
+                      aria-label="Remove feature"
+                      className="text-text-muted hover:text-danger"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="block text-[10px] text-text-muted mb-1">Plan Type</label>

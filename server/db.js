@@ -329,6 +329,18 @@ if (!planColumns.includes('max_credits')) {
 if (!planColumns.includes('custom_duration_options_json')) {
   db.exec("ALTER TABLE plans ADD COLUMN custom_duration_options_json TEXT NOT NULL DEFAULT '[]'");
 }
+// Cosmetic-only presentation fields for the customer-facing plan card - a
+// short subtitle, an icon key, and a color key. None of these affect
+// pricing/credits/entitlement logic anywhere; purely display.
+if (!planColumns.includes('tagline')) {
+  db.exec('ALTER TABLE plans ADD COLUMN tagline TEXT');
+}
+if (!planColumns.includes('icon')) {
+  db.exec('ALTER TABLE plans ADD COLUMN icon TEXT');
+}
+if (!planColumns.includes('theme_color')) {
+  db.exec('ALTER TABLE plans ADD COLUMN theme_color TEXT');
+}
 
 // Records exactly how many credits a given order actually paid for - needed
 // once quantity can vary per-order (custom plans); fixed-plan orders just
