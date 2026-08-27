@@ -91,7 +91,19 @@ router.post('/', async (req, res) => {
     const amountPaise = credits * topupRate;
     try {
       const receipt = `saypx_topup_${customerId}_${Date.now()}`;
-      const rzpOrder = await razorpay.orders.create({ amount: amountPaise, currency: 'INR', receipt });
+      const rzpOrder = await razorpay.orders.create({
+        amount: amountPaise,
+        currency: 'INR',
+        receipt,
+        notes: {
+          product: 'SAYPX Digital Photo Book',
+          order_kind: 'TOPUP',
+          plan_id: String(pkg.plan_id),
+          package_id: String(pkg.id),
+          credits: String(credits),
+          user_id: String(customerId),
+        },
+      });
       const result = db
         .prepare(
           `INSERT INTO orders (customer_id, plan_id, amount_paise, razorpay_order_id, status, credits_purchased, order_kind, package_id)
@@ -152,6 +164,14 @@ router.post('/', async (req, res) => {
       amount: amountPaise,
       currency: 'INR',
       receipt,
+      notes: {
+        product: 'SAYPX Digital Photo Book',
+        plan_id: String(plan.id),
+        plan_name: plan.name,
+        duration_days: String(resolvedDurationDays),
+        credits: String(creditsPurchased),
+        user_id: String(customerId),
+      },
     });
 
     const result = db

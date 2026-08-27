@@ -36,6 +36,10 @@ import PortalDashboard from './portal/pages/Dashboard';
 import PortalPlans from './portal/pages/Plans';
 import CustomPlanBuilder from './portal/pages/CustomPlanBuilder';
 import PortalOrders from './portal/pages/Orders';
+import Terms from './portal/pages/legal/Terms';
+import Privacy from './portal/pages/legal/Privacy';
+import ContactUs from './portal/pages/legal/Contact';
+import RefundPolicy from './portal/pages/legal/RefundPolicy';
 
 function CustomerProtectedRoutes() {
   const { customer, loading } = useCustomerAuth();
@@ -123,6 +127,10 @@ export default function App() {
             <Route path="/album/signup" element={<PortalSignup />} />
             <Route path="/album/plans" element={<PortalPlans />} />
             <Route path="/album/custom/:planId" element={<CustomPlanBuilder />} />
+            <Route path="/album/terms" element={<Terms />} />
+            <Route path="/album/privacy" element={<Privacy />} />
+            <Route path="/album/contact" element={<ContactUs />} />
+            <Route path="/album/refund-policy" element={<RefundPolicy />} />
             <Route element={<CustomerProtectedRoutes />}>
               <Route path="/album/dashboard" element={<PortalDashboard />} />
               <Route path="/album/orders" element={<PortalOrders />} />

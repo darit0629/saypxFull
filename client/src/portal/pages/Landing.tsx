@@ -166,7 +166,7 @@ export default function PortalLanding() {
       </main>
 
       <footer className="border-t border-border/60">
-        <div className="mx-auto max-w-6xl px-6 py-10 grid grid-cols-1 sm:grid-cols-3 gap-8">
+        <div className="mx-auto max-w-6xl px-6 py-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <img src="/saypx-wordmark.png" alt="SAYPX" className="h-7 w-auto" />
             <p className="text-xs text-text-muted mt-3 max-w-xs">
@@ -208,6 +208,16 @@ export default function PortalLanding() {
                   <Phone size={13} /> +91 62940 11684
                 </a>
               </li>
+              <li><Link to="/album/contact" className="text-text-muted hover:text-text">Contact Us</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3">Legal</p>
+            <ul className="space-y-2 text-sm">
+              <li><Link to="/album/terms" className="text-text-muted hover:text-text">Terms & Conditions</Link></li>
+              <li><Link to="/album/privacy" className="text-text-muted hover:text-text">Privacy Policy</Link></li>
+              <li><Link to="/album/refund-policy" className="text-text-muted hover:text-text">Cancellation & Refund Policy</Link></li>
             </ul>
           </div>
         </div>
