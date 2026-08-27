@@ -58,6 +58,7 @@ function buildRouter() {
       watermarkEnabled: !!album.watermark_enabled,
       watermarkJson: album.watermark_enabled ? album.watermark_json : null,
       loadingTagline: album.loading_tagline || null,
+      logoUrl: album.logo_path || null,
       musicUrl: album.background_music_path || null,
       audioMode: album.audio_mode,
       musicVolume: album.music_volume,

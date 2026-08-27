@@ -48,17 +48,11 @@ html, body {
   text-align: center;
   transition: opacity 0.6s ease;
 }
-.da-loading-logo {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
 .da-loading-text, .da-error-text {
   color: var(--da-muted);
   font-size: 14px;
 }
-.da-loading-logo::after { content: ''; }
-.da-error .da-loading-logo {
+.da-error .da-loading-brand-logo {
   animation: da-pulse 1.6s ease-in-out infinite;
 }
 @keyframes da-pulse {
@@ -67,13 +61,14 @@ html, body {
 }
 
 /* Cinematic branded loading screen - cover slowly sharpens in while progress
-   climbs, rather than a generic spinner. */
-.da-loading-brand {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.3em;
-  color: var(--da-brand);
-  opacity: 0.85;
+   climbs, rather than a generic spinner. Shows the album's own uploaded
+   logo when set, falling back to the default SAYPX wordmark otherwise. */
+.da-loading-brand-logo {
+  height: 28px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  opacity: 0.9;
   margin-bottom: 4px;
 }
 .da-loading-cover-wrap {

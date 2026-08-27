@@ -520,6 +520,43 @@ function buildRouter() {
     res.json({ ok: true });
   });
 
+  // Brand logo shown on the public loading screen in place of the default
+  // SAYPX wordmark. Like music, a straight validated copy - no
+  // original/display/thumbnail triad needed since it's never a page.
+  router.post('/:id/logo', upload.single('file'), async (req, res) => {
+    const cleanup = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+    try {
+      const album = db.prepare('SELECT id, logo_path FROM digital_albums WHERE id = ?').get(req.params.id);
+      if (!album) { cleanup(); return res.status(404).json({ error: 'Album not found' }); }
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+      const logoDir = path.join(ALBUMS_DIR, String(album.id), 'logo');
+      fs.mkdirSync(logoDir, { recursive: true });
+      const ext = path.extname(req.file.originalname) || '.png';
+      const filename = `logo-${Date.now()}-${crypto.randomInt(1e6)}${ext}`;
+      const destPath = path.join(logoDir, filename);
+      fs.copyFileSync(req.file.path, destPath);
+      cleanup();
+
+      if (album.logo_path) fs.unlink(path.join(__dirname, '..', album.logo_path), () => {});
+      const relPath = `albums/${album.id}/logo/${filename}`;
+      db.prepare('UPDATE digital_albums SET logo_path = ?, updated_at = ? WHERE id = ?').run(relPath, Date.now(), album.id);
+      logAudit(album.id, 'logo_uploaded', { filename });
+      res.status(201).json({ ok: true, path: relPath });
+    } catch (e) {
+      cleanup();
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete('/:id/logo', (req, res) => {
+    const album = db.prepare('SELECT logo_path FROM digital_albums WHERE id = ?').get(req.params.id);
+    if (!album) return res.status(404).json({ error: 'Album not found' });
+    if (album.logo_path) fs.unlink(path.join(__dirname, '..', album.logo_path), () => {});
+    db.prepare('UPDATE digital_albums SET logo_path = NULL, updated_at = ? WHERE id = ?').run(Date.now(), req.params.id);
+    res.json({ ok: true });
+  });
+
   // Manual center-fold adjustment for a Full Spread image whose exported
   // canvas is slightly off-center - the image itself is never touched.
   router.patch('/:id/images/:imageId/center', (req, res) => {

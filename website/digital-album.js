@@ -33,11 +33,13 @@
     shareSheet: document.getElementById('shareSheet'),
     loadingCoverWrap: document.getElementById('loadingCoverWrap'),
     loadingCoverImg: document.getElementById('loadingCoverImg'),
+    loadingBrandLogo: document.getElementById('loadingBrandLogo'),
     loadingTitle: document.getElementById('loadingTitle'),
     loadingTagline: document.getElementById('loadingTagline'),
     loadingProgressFill: document.getElementById('loadingProgressFill'),
     loadingPercent: document.getElementById('loadingPercent'),
   };
+  var DEFAULT_BRAND_LOGO = els.loadingBrandLogo ? els.loadingBrandLogo.getAttribute('src') : null;
 
   var DEFAULT_TAGLINES = [
     'Every picture, a memory kept.',
@@ -89,7 +91,20 @@
       state.album = data;
       state.soundOn = data.soundEnabled !== false;
       state.audioMode = data.audioMode || 'page-flip-sound-only';
-      setLoadingProgress(35);
+      setLoadingProgress(20);
+
+      if (els.loadingBrandLogo) {
+        var logoUrl = data.logoUrl ? abs(data.logoUrl) : null;
+        if (logoUrl) {
+          // Falls back to the default wordmark if the custom logo 404s,
+          // rather than showing a broken image icon on someone's album.
+          els.loadingBrandLogo.onerror = function () {
+            els.loadingBrandLogo.onerror = null;
+            els.loadingBrandLogo.src = DEFAULT_BRAND_LOGO;
+          };
+          els.loadingBrandLogo.src = logoUrl;
+        }
+      }
 
       if (els.loadingTitle) els.loadingTitle.textContent = data.title || '';
       if (els.loadingTagline) {
@@ -105,8 +120,10 @@
         return;
       }
 
-      loadCoverPreview().then(function () {
-        setLoadingProgress(70);
+      // The book only opens once every page image has actually finished
+      // downloading - not just once the HTML structure exists - so nobody
+      // ever flips to a spread that's still visibly loading in.
+      preloadAllPages().then(function () {
         onReady();
       });
     })
@@ -116,25 +133,50 @@
       show(els.error);
     });
 
-  // Warms the cover image in before the book is built, so the loading
-  // screen's blur-to-sharp reveal has something real to show progress
-  // against instead of a generic spinner.
-  function loadCoverPreview() {
+  // Warms every unique page image (cover included) into the browser cache,
+  // driving the progress bar off real bytes-of-content-loaded instead of
+  // arbitrary milestones. FULL_SPREAD pages share one source image between
+  // their left/right halves, so this loads each URL once, not twice.
+  function preloadAllPages() {
     return new Promise(function (resolve) {
-      var first = state.digitalPages[0];
-      var coverUrl = (first && first.isCover) ? first.src : null;
-      if (!coverUrl || !els.loadingCoverImg) return resolve();
-      show(els.loadingCoverWrap);
-      var img = new Image();
-      var done = function () {
-        els.loadingCoverImg.src = coverUrl;
-        requestAnimationFrame(function () { els.loadingCoverImg.classList.add('da-loading-sharp'); });
-        setLoadingProgress(55);
-        resolve();
-      };
-      img.onload = done;
-      img.onerror = done;
-      img.src = coverUrl;
+      var urls = [];
+      var seen = {};
+      state.digitalPages.forEach(function (p) {
+        if (!p.src || seen[p.src]) return;
+        seen[p.src] = true;
+        urls.push(p.src);
+      });
+
+      var total = urls.length;
+      if (total === 0) return resolve();
+
+      var loaded = 0;
+      var coverShown = false;
+
+      function settle() {
+        loaded += 1;
+        // Reserve 20-85% of the bar for real page-loading progress; 0-20%
+        // was the album JSON fetch, 85-100% is book construction + audio.
+        setLoadingProgress(20 + (loaded / total) * 65);
+        if (loaded >= total) resolve();
+      }
+
+      urls.forEach(function (url, i) {
+        var img = new Image();
+        img.onload = function () {
+          // Reveal the actual cover art as soon as it personally finishes,
+          // same blur-to-sharp moment the loading screen always had.
+          if (i === 0 && state.digitalPages[0] && state.digitalPages[0].isCover && els.loadingCoverImg && !coverShown) {
+            coverShown = true;
+            show(els.loadingCoverWrap);
+            els.loadingCoverImg.src = url;
+            requestAnimationFrame(function () { els.loadingCoverImg.classList.add('da-loading-sharp'); });
+          }
+          settle();
+        };
+        img.onerror = settle;
+        img.src = url;
+      });
     });
   }
 
@@ -167,8 +209,9 @@
     els.soundOnIcon.hidden = !state.soundOn;
     els.soundOffIcon.hidden = state.soundOn;
     show(els.viewerRoot);
+    setLoadingProgress(85);
     initPageFlip();
-    setLoadingProgress(90);
+    setLoadingProgress(95);
     initBackgroundMusic();
     setLoadingProgress(100);
 

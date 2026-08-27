@@ -46,6 +46,51 @@ export async function apiUpload<T>(url: string, formData: FormData): Promise<T> 
   return data as T;
 }
 
+export interface UploadProgress {
+  loadedBytes: number;
+  totalBytes: number;
+  percent: number;
+  bytesPerSecond: number;
+}
+
+// fetch() can't report upload progress (no browser exposes a write-progress
+// hook on its request body streams yet), so this uses XMLHttpRequest's
+// upload.onprogress instead - the only reliable cross-browser way to get
+// real percent/speed numbers for a file upload in progress.
+export function apiUploadWithProgress<T>(url: string, formData: FormData, onProgress?: (p: UploadProgress) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const startedAt = Date.now();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = (e) => {
+      if (!onProgress || !e.lengthComputable) return;
+      const elapsedSeconds = (Date.now() - startedAt) / 1000;
+      onProgress({
+        loadedBytes: e.loaded,
+        totalBytes: e.total,
+        percent: e.total > 0 ? Math.round((e.loaded / e.total) * 100) : 0,
+        bytesPerSecond: elapsedSeconds > 0 ? e.loaded / elapsedSeconds : 0,
+      });
+    };
+    xhr.onload = () => {
+      handleUnauthorized(url, xhr.status);
+      let data: unknown = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        // non-JSON response - fall through with an empty object
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error((data as { error?: string }).error || `Request failed (${xhr.status})`));
+        return;
+      }
+      resolve(data as T);
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(formData);
+  });
+}
+
 // ---- Types ----
 export interface Client {
   id: number;
@@ -208,6 +253,7 @@ export interface DigitalAlbum {
   music_volume: number;
   music_loop: number;
   loading_tagline: string | null;
+  logo_path: string | null;
   created_at: number;
   updated_at: number;
   published_at: number | null;

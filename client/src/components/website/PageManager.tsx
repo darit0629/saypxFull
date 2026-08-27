@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Upload, Trash2, Copy, RefreshCw, GripVertical } from 'lucide-react';
-import { api, apiUpload, type AlbumPage, type PageMode } from '../../lib/api';
+import { api, apiUploadWithProgress, type AlbumPage, type PageMode } from '../../lib/api';
 import { WEBSITE_BASE } from '../../lib/config';
 
 interface Props {
@@ -12,7 +12,17 @@ interface Props {
 
 interface UploadTask {
   name: string;
+  totalBytes: number;
   status: 'pending' | 'uploading' | 'done' | 'failed';
+  percent: number;
+  loadedBytes: number;
+  bytesPerSecond: number;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function PageManager({ albumId, pages, pageMode, onChange }: Props) {
@@ -32,15 +42,19 @@ export default function PageManager({ albumId, pages, pageMode, onChange }: Prop
   async function handleFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
     const list = Array.from(files);
-    setTasks(list.map((f) => ({ name: f.name, status: 'pending' })));
+    setTasks(list.map((f) => ({ name: f.name, totalBytes: f.size, status: 'pending', percent: 0, loadedBytes: 0, bytesPerSecond: 0 })));
     setUploading(true);
     for (let i = 0; i < list.length; i++) {
       setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, status: 'uploading' } : t)));
       try {
         const formData = new FormData();
         formData.append('file', list[i]);
-        await apiUpload(`/api/website/albums/${albumId}/pages`, formData);
-        setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, status: 'done' } : t)));
+        await apiUploadWithProgress(`/api/website/albums/${albumId}/pages`, formData, (p) => {
+          setTasks((prev) =>
+            prev.map((t, idx) => (idx === i ? { ...t, percent: p.percent, loadedBytes: p.loadedBytes, bytesPerSecond: p.bytesPerSecond } : t))
+          );
+        });
+        setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, status: 'done', percent: 100 } : t)));
       } catch {
         setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, status: 'failed' } : t)));
       }
@@ -54,7 +68,7 @@ export default function PageManager({ albumId, pages, pageMode, onChange }: Prop
     if (!files || files.length === 0 || pageId == null) return;
     const formData = new FormData();
     formData.append('file', files[0]);
-    await apiUpload(`/api/website/albums/${albumId}/pages/${pageId}/replace`, formData);
+    await apiUploadWithProgress(`/api/website/albums/${albumId}/pages/${pageId}/replace`, formData);
     onChange();
   }
 
@@ -147,17 +161,45 @@ export default function PageManager({ albumId, pages, pageMode, onChange }: Prop
       </div>
 
       {tasks.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-3 space-y-1">
+        <div className="rounded-lg border border-border bg-card p-3 space-y-2.5">
           {tasks.map((t, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <span className="truncate">{t.name}</span>
-              <span
-                className={
-                  t.status === 'done' ? 'text-emerald-400' : t.status === 'failed' ? 'text-danger' : 'text-text-muted'
-                }
-              >
-                {t.status}
-              </span>
+            <div key={i} className="text-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="truncate">{t.name}</span>
+                <span
+                  className={
+                    t.status === 'done'
+                      ? 'text-emerald-400'
+                      : t.status === 'failed'
+                        ? 'text-danger'
+                        : 'text-text-muted'
+                  }
+                >
+                  {t.status === 'uploading'
+                    ? `${t.percent}%`
+                    : t.status === 'done'
+                      ? 'Done'
+                      : t.status === 'failed'
+                        ? 'Failed'
+                        : 'Pending'}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                <div
+                  className={`h-full transition-[width] duration-150 ${
+                    t.status === 'failed' ? 'bg-danger' : t.status === 'done' ? 'bg-emerald-400' : 'gradient-brand'
+                  }`}
+                  style={{ width: `${t.status === 'pending' ? 0 : t.percent}%` }}
+                />
+              </div>
+              {t.status === 'uploading' && (
+                <div className="flex items-center justify-between mt-0.5 text-[10px] text-text-muted">
+                  <span>
+                    {formatBytes(t.loadedBytes)} / {formatBytes(t.totalBytes)}
+                  </span>
+                  <span>{formatBytes(t.bytesPerSecond)}/s</span>
+                </div>
+              )}
             </div>
           ))}
           {!uploading && (

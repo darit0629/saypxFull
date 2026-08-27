@@ -131,5 +131,10 @@ if (!albumCols.includes('music_loop')) {
 if (!albumCols.includes('loading_tagline')) {
   db.exec('ALTER TABLE digital_albums ADD COLUMN loading_tagline TEXT');
 }
+// Optional per-album brand logo shown on the public loading screen; NULL
+// falls back to the default SAYPX wordmark.
+if (!albumCols.includes('logo_path')) {
+  db.exec('ALTER TABLE digital_albums ADD COLUMN logo_path TEXT');
+}
 
 module.exports = db;

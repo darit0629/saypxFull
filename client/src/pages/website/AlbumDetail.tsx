@@ -15,7 +15,9 @@ const AUDIO_MODES: { value: DigitalAlbum['audio_mode']; label: string }[] = [
 
 function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tagline, setTagline] = useState(album.loading_tagline || '');
   useEffect(() => setTagline(album.loading_tagline || ''), [album.id, album.loading_tagline]);
@@ -39,6 +41,28 @@ function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: ()
   async function removeMusic() {
     if (!confirm('Remove the background music track?')) return;
     await api.delete(`/api/website/albums/${album.id}/music`);
+    onChange();
+  }
+
+  async function uploadLogo(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadingLogo(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', files[0]);
+      await apiUpload(`/api/website/albums/${album.id}/logo`, formData);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!confirm('Remove the brand logo? The loading screen will fall back to the default SAYPX wordmark.')) return;
+    await api.delete(`/api/website/albums/${album.id}/logo`);
     onChange();
   }
 
@@ -125,6 +149,34 @@ function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: ()
           />
           Loop music
         </label>
+      </div>
+
+      <div>
+        <p className="text-[10px] text-text-muted uppercase mb-1.5">Brand Logo (shown on the loading screen)</p>
+        {album.logo_path ? (
+          <div className="flex items-center gap-3">
+            <img
+              src={`${WEBSITE_BASE}/${album.logo_path}`}
+              alt="Brand logo"
+              className="h-10 max-w-[140px] object-contain rounded border border-border bg-black/20 p-1"
+            />
+            <button
+              onClick={removeLogo}
+              className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3 py-1.5 text-xs text-danger"
+            >
+              <X size={13} /> Remove
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo}
+            className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-text-muted disabled:opacity-50"
+          >
+            <Upload size={14} /> {uploadingLogo ? 'Uploading…' : 'Upload a brand logo'}
+          </button>
+        )}
+        <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadLogo(e.target.files)} />
       </div>
 
       <div>
