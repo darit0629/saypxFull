@@ -22,6 +22,8 @@ const {
   uploadAlbumCover,
   uploadAlbumMusic,
   deleteAlbumMusic,
+  uploadAlbumLogo,
+  deleteAlbumLogo,
   setImageCenter,
   getAlbumQr,
 } = require('../lib/websiteProxy');
@@ -230,6 +232,27 @@ router.post('/albums/:id/music', uploadAudio.single('file'), async (req, res) =>
 router.delete('/albums/:id/music', async (req, res) => {
   try {
     res.json(await deleteAlbumMusic(req.params.id));
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.post('/albums/:id/logo', upload.single('file'), async (req, res) => {
+  const cleanup = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const result = await uploadAlbumLogo(req.params.id, req.file);
+    cleanup();
+    res.status(201).json(result);
+  } catch (e) {
+    cleanup();
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+router.delete('/albums/:id/logo', async (req, res) => {
+  try {
+    res.json(await deleteAlbumLogo(req.params.id));
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }

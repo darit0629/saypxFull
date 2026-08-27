@@ -149,6 +149,19 @@ async function deleteAlbumMusic(albumId) {
   return parseOrThrow(res);
 }
 
+async function uploadAlbumLogo(albumId, file) {
+  const form = new FormData();
+  const buffer = fs.readFileSync(file.path);
+  form.append('file', new Blob([buffer], { type: file.mimetype }), file.originalname);
+  const res = await fetch(`${BASE}/api/admin/albums/${albumId}/logo`, { method: 'POST', headers: headers(), body: form });
+  return parseOrThrow(res);
+}
+
+async function deleteAlbumLogo(albumId) {
+  const res = await fetch(`${BASE}/api/admin/albums/${albumId}/logo`, { method: 'DELETE', headers: headers() });
+  return parseOrThrow(res);
+}
+
 async function getAlbumQr(albumId, format) {
   const res = await fetch(`${BASE}/api/admin/albums/${albumId}/qr${format === 'svg' ? '?format=svg' : ''}`, { headers: headers() });
   if (!res.ok) {
@@ -190,6 +203,8 @@ module.exports = {
   uploadAlbumCover,
   uploadAlbumMusic,
   deleteAlbumMusic,
+  uploadAlbumLogo,
+  deleteAlbumLogo,
   setImageCenter,
   getAlbumQr,
 };
