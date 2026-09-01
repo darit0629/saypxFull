@@ -4,7 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const QRCode = require('qrcode');
 const db = require('./albumsDb');
-const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlbumDir, ALBUMS_DIR } = require('./albumProcessing');
+const { processAlbumImage, copyImageToNewAlbum, deleteAlbumImageFiles, deleteAlbumDir, deleteAlbumMediaPath, uploadAlbumAsset } = require('./albumProcessing');
 
 // The real production domain, per the requirement to never hardcode a fake
 // one - overridable via env for local testing against a different port.
@@ -253,52 +253,65 @@ function buildRouter() {
   router.delete('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM digital_albums WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Album not found' });
+
+    // Deleting the row cascades digital_album_images/pages in the DB, but
+    // any of those images' R2 objects need an explicit delete call first -
+    // deleteAlbumDir below only ever touches the local filesystem.
+    const images = db.prepare('SELECT * FROM digital_album_images WHERE album_id = ?').all(req.params.id);
+    for (const img of images) deleteAlbumImageFiles(img);
+    deleteAlbumMediaPath(existing.logo_path);
+    deleteAlbumMediaPath(existing.background_music_path);
+
     db.prepare('DELETE FROM digital_albums WHERE id = ?').run(req.params.id);
     deleteAlbumDir(req.params.id);
     res.json({ ok: true });
   });
 
-  router.post('/:id/duplicate', (req, res) => {
+  router.post('/:id/duplicate', async (req, res) => {
     const existing = db.prepare('SELECT * FROM digital_albums WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Album not found' });
 
-    const code = uniqueCode();
-    const result = db
-      .prepare(
-        `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description,
-           bride_name, groom_name, venue, location, custom_message, public_code, page_mode,
-           allow_download, allow_share, sound_enabled, watermark_enabled, watermark_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        existing.title + ' (Copy)', existing.client_name, existing.event_type, existing.event_date,
-        existing.photographer_name, existing.description, existing.bride_name, existing.groom_name,
-        existing.venue, existing.location, existing.custom_message, code, existing.page_mode,
-        existing.allow_download, existing.allow_share, existing.sound_enabled, existing.watermark_enabled,
-        existing.watermark_json
-      );
-    const newAlbumId = result.lastInsertRowid;
-
-    const pages = db.prepare('SELECT * FROM digital_album_pages WHERE album_id = ? ORDER BY sort_order').all(req.params.id);
-    for (const p of pages) {
-      const img = db.prepare('SELECT * FROM digital_album_images WHERE id = ?').get(p.image_id);
-      // Real independent file copies - the duplicate must not share files
-      // with the source album, since either one can be deleted separately.
-      const copied = copyImageToNewAlbum(newAlbumId, img);
-      const imgResult = db
+    try {
+      const code = uniqueCode();
+      const result = db
         .prepare(
-          `INSERT INTO digital_album_images (album_id, original_path, display_path, thumbnail_path, width, height, mime_type, file_size, center_x_pct)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO digital_albums (title, client_name, event_type, event_date, photographer_name, description,
+             bride_name, groom_name, venue, location, custom_message, public_code, page_mode,
+             allow_download, allow_share, sound_enabled, watermark_enabled, watermark_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .run(newAlbumId, copied.original_path, copied.display_path, copied.thumbnail_path, img.width, img.height, img.mime_type, img.file_size, img.center_x_pct);
-      db.prepare(
-        'INSERT INTO digital_album_pages (album_id, page_number, spread_number, sort_order, image_id) VALUES (?, ?, ?, ?, ?)'
-      ).run(newAlbumId, p.page_number, p.spread_number, p.sort_order, imgResult.lastInsertRowid);
-    }
+        .run(
+          existing.title + ' (Copy)', existing.client_name, existing.event_type, existing.event_date,
+          existing.photographer_name, existing.description, existing.bride_name, existing.groom_name,
+          existing.venue, existing.location, existing.custom_message, code, existing.page_mode,
+          existing.allow_download, existing.allow_share, existing.sound_enabled, existing.watermark_enabled,
+          existing.watermark_json
+        );
+      const newAlbumId = result.lastInsertRowid;
 
-    logAudit(newAlbumId, 'album_duplicated', { fromAlbumId: existing.id });
-    const row = db.prepare('SELECT * FROM digital_albums WHERE id = ?').get(newAlbumId);
-    res.status(201).json(serializeAlbum(row));
+      const pages = db.prepare('SELECT * FROM digital_album_pages WHERE album_id = ? ORDER BY sort_order').all(req.params.id);
+      for (const p of pages) {
+        const img = db.prepare('SELECT * FROM digital_album_images WHERE id = ?').get(p.image_id);
+        // Real independent file copies - the duplicate must not share files
+        // with the source album, since either one can be deleted separately.
+        const copied = await copyImageToNewAlbum(newAlbumId, img);
+        const imgResult = db
+          .prepare(
+            `INSERT INTO digital_album_images (album_id, original_path, display_path, thumbnail_path, width, height, mime_type, file_size, center_x_pct)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(newAlbumId, copied.original_path, copied.display_path, copied.thumbnail_path, img.width, img.height, img.mime_type, img.file_size, img.center_x_pct);
+        db.prepare(
+          'INSERT INTO digital_album_pages (album_id, page_number, spread_number, sort_order, image_id) VALUES (?, ?, ?, ?, ?)'
+        ).run(newAlbumId, p.page_number, p.spread_number, p.sort_order, imgResult.lastInsertRowid);
+      }
+
+      logAudit(newAlbumId, 'album_duplicated', { fromAlbumId: existing.id });
+      const row = db.prepare('SELECT * FROM digital_albums WHERE id = ?').get(newAlbumId);
+      res.status(201).json(serializeAlbum(row));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // Reassigns page_number/spread_number sequentially from current sort_order -
@@ -399,14 +412,14 @@ function buildRouter() {
     }
   });
 
-  router.post('/:id/pages/:pageId/duplicate', (req, res) => {
+  router.post('/:id/pages/:pageId/duplicate', async (req, res) => {
     try {
       const page = db.prepare('SELECT * FROM digital_album_pages WHERE id = ? AND album_id = ?').get(req.params.pageId, req.params.id);
       if (!page) return res.status(404).json({ error: 'Page not found' });
       const album = db.prepare('SELECT page_mode FROM digital_albums WHERE id = ?').get(req.params.id);
       const img = db.prepare('SELECT * FROM digital_album_images WHERE id = ?').get(page.image_id);
 
-      const copied = copyImageToNewAlbum(req.params.id, img);
+      const copied = await copyImageToNewAlbum(req.params.id, img);
       const imgResult = db
         .prepare(
           `INSERT INTO digital_album_images (album_id, original_path, display_path, thumbnail_path, width, height, mime_type, file_size, center_x_pct)
@@ -492,15 +505,11 @@ function buildRouter() {
       if (!album) { cleanup(); return res.status(404).json({ error: 'Album not found' }); }
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      const audioDir = path.join(ALBUMS_DIR, String(album.id), 'audio');
-      fs.mkdirSync(audioDir, { recursive: true });
       const ext = path.extname(req.file.originalname) || '.mp3';
       const filename = `music-${Date.now()}-${crypto.randomInt(1e6)}${ext}`;
-      const destPath = path.join(audioDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
+      const relPath = await uploadAlbumAsset(album.id, req.file.path, 'audio', filename, req.file.mimetype);
       cleanup();
 
-      const relPath = `albums/${album.id}/audio/${filename}`;
       db.prepare('UPDATE digital_albums SET background_music_path = ?, updated_at = ? WHERE id = ?').run(relPath, Date.now(), album.id);
       logAudit(album.id, 'music_uploaded', { filename });
       res.status(201).json({ ok: true, path: relPath });
@@ -513,9 +522,7 @@ function buildRouter() {
   router.delete('/:id/music', (req, res) => {
     const album = db.prepare('SELECT background_music_path FROM digital_albums WHERE id = ?').get(req.params.id);
     if (!album) return res.status(404).json({ error: 'Album not found' });
-    if (album.background_music_path) {
-      fs.unlink(path.join(__dirname, '..', album.background_music_path), () => {});
-    }
+    deleteAlbumMediaPath(album.background_music_path);
     db.prepare("UPDATE digital_albums SET background_music_path = NULL, updated_at = ? WHERE id = ?").run(Date.now(), req.params.id);
     res.json({ ok: true });
   });
@@ -530,16 +537,12 @@ function buildRouter() {
       if (!album) { cleanup(); return res.status(404).json({ error: 'Album not found' }); }
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      const logoDir = path.join(ALBUMS_DIR, String(album.id), 'logo');
-      fs.mkdirSync(logoDir, { recursive: true });
       const ext = path.extname(req.file.originalname) || '.png';
       const filename = `logo-${Date.now()}-${crypto.randomInt(1e6)}${ext}`;
-      const destPath = path.join(logoDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
+      const relPath = await uploadAlbumAsset(album.id, req.file.path, 'logo', filename, req.file.mimetype);
       cleanup();
 
-      if (album.logo_path) fs.unlink(path.join(__dirname, '..', album.logo_path), () => {});
-      const relPath = `albums/${album.id}/logo/${filename}`;
+      if (album.logo_path) deleteAlbumMediaPath(album.logo_path);
       db.prepare('UPDATE digital_albums SET logo_path = ?, updated_at = ? WHERE id = ?').run(relPath, Date.now(), album.id);
       logAudit(album.id, 'logo_uploaded', { filename });
       res.status(201).json({ ok: true, path: relPath });
@@ -552,7 +555,7 @@ function buildRouter() {
   router.delete('/:id/logo', (req, res) => {
     const album = db.prepare('SELECT logo_path FROM digital_albums WHERE id = ?').get(req.params.id);
     if (!album) return res.status(404).json({ error: 'Album not found' });
-    if (album.logo_path) fs.unlink(path.join(__dirname, '..', album.logo_path), () => {});
+    deleteAlbumMediaPath(album.logo_path);
     db.prepare('UPDATE digital_albums SET logo_path = NULL, updated_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({ ok: true });
   });
