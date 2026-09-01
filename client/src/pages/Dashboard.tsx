@@ -43,7 +43,7 @@ export default function Dashboard() {
         <p className="text-sm text-text-muted mt-1">Monthly overview of your billing.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl gradient-brand p-5">
           <p className="text-xs uppercase tracking-wide text-white/80">Total Revenue</p>
           <p className="text-2xl font-bold mt-2">{formatMoney(data.totalRevenue)}</p>
@@ -55,6 +55,11 @@ export default function Dashboard() {
         <div className="rounded-2xl border border-border bg-card p-5">
           <p className="text-xs uppercase tracking-wide text-text-muted">Net Profit</p>
           <p className="text-2xl font-bold mt-2">{formatMoney(data.netProfit)}</p>
+          <p className="text-[10px] text-text-muted mt-1">Revenue collected minus expenses, excludes due amount</p>
+        </div>
+        <div className="rounded-2xl border border-warning/40 bg-warning/5 p-5">
+          <p className="text-xs uppercase tracking-wide text-warning">Due Amount</p>
+          <p className="text-2xl font-bold mt-2">{formatMoney(data.dueAmount)}</p>
         </div>
       </div>
 

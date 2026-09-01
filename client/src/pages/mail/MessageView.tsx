@@ -28,6 +28,13 @@ export default function MessageView() {
     navigate(`/mail/${folder}`);
   }
 
+  async function handlePermanentDelete() {
+    if (!message) return;
+    if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+    await api.delete(`/api/mail/messages/${message.id}`);
+    navigate(`/mail/${folder}`);
+  }
+
   if (loading) return <p className="text-sm text-text-muted">Loading…</p>;
   if (!message) return <p className="text-sm text-text-muted">Message not found.</p>;
 
@@ -51,8 +58,16 @@ export default function MessageView() {
           <button onClick={() => setComposeMode('forward')} className="rounded-lg border border-border p-2 text-text-muted" aria-label="Forward">
             <Forward size={15} />
           </button>
-          {folder !== 'trash' && (
-            <button onClick={handleTrash} className="rounded-lg border border-danger/40 p-2 text-danger" aria-label="Delete">
+          {folder !== 'trash' ? (
+            <button onClick={handleTrash} className="rounded-lg border border-danger/40 p-2 text-danger" aria-label="Move to Trash">
+              <Trash2 size={15} />
+            </button>
+          ) : (
+            <button
+              onClick={handlePermanentDelete}
+              className="rounded-lg border border-danger/40 p-2 text-danger"
+              aria-label="Delete Permanently"
+            >
               <Trash2 size={15} />
             </button>
           )}

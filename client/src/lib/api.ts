@@ -143,6 +143,7 @@ export interface Invoice {
 export interface DashboardData {
   totalRevenue: number;
   totalExpenses: number;
+  dueAmount: number;
   netProfit: number;
   invoiceCounts: { total: number; paid: number; due: number; overdue: number };
   recentTransactions: {

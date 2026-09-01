@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
   const revenue = db.prepare('SELECT COALESCE(SUM(total_amount),0) AS v FROM invoices').get().v;
+  const due = db.prepare('SELECT COALESCE(SUM(due_amount),0) AS v FROM invoices').get().v;
   const expenses = db.prepare('SELECT COALESCE(SUM(amount),0) AS v FROM expenses').get().v;
 
   const invoices = db
@@ -39,7 +40,10 @@ router.get('/', (req, res) => {
   res.json({
     totalRevenue: revenue,
     totalExpenses: expenses,
-    netProfit: Math.round((revenue - expenses) * 100) / 100,
+    dueAmount: due,
+    // Profit only counts revenue actually collected (total minus what's
+    // still due), never money that's billed but not yet in hand.
+    netProfit: Math.round((revenue - due - expenses) * 100) / 100,
     invoiceCounts: counts,
     recentTransactions: recent,
   });

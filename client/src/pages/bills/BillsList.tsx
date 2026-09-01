@@ -129,7 +129,12 @@ export default function BillsList() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold">{formatMoney(inv.total_amount)}</p>
+                <p className="text-sm font-semibold">
+                  {formatMoney(inv.total_amount)}
+                  {inv.due_amount > 0 && (
+                    <span className="ml-1.5 text-xs font-medium text-warning">· Due {formatMoney(inv.due_amount)}</span>
+                  )}
+                </p>
                 <span
                   className={`inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS_STYLES[inv.display_status]}`}
                 >
