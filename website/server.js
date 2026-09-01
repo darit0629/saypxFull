@@ -10,6 +10,7 @@ const multer = require('multer');
 const { slugify, uniqueSlug, processImage, processVideo } = require('./lib/mediaProcessing');
 const { readItems, writeItems, existingSlugSet } = require('./lib/portfolioStore');
 const { bumpCacheVersion, getCategoryMap, addFilterButton } = require('./lib/siteHtml');
+const mediaStorageService = require('./lib/mediaStorageService');
 
 const PORT = parseInt(process.argv[2] || process.env.PORT || '5000', 10);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
@@ -155,17 +156,67 @@ app.post('/api/admin/portfolio', requireAuth, upload.single('file'), async (req,
     const baseSlug = slugify(title);
     const slug = uniqueSlug(baseSlug, slugSet);
 
+    // New uploads go to object storage when it's configured; if it isn't
+    // (e.g. a local dev box without R2 credentials), fall back to the
+    // original local-disk layout exactly as before so nothing breaks.
+    const useObjectStorage = mediaStorageService.isConfigured();
+
     let entry;
     if (isVideo) {
-      const destVideo = path.join(__dirname, 'videos', 'portfolio', slug + '.mp4');
-      const destPoster = path.join(__dirname, 'videos', 'posters', slug + '.jpg');
-      const { orientation } = processVideo(req.file.path, destVideo, destPoster);
+      if (useObjectStorage) {
+        const tmpVideo = path.join(TMP_DIR, slug + '-' + Date.now() + '.mp4');
+        const tmpPoster = path.join(TMP_DIR, slug + '-' + Date.now() + '.jpg');
+        const { orientation } = processVideo(req.file.path, tmpVideo, tmpPoster);
+        const videoKey = mediaStorageService.generateKey('portfolio/videos', slug + '.mp4');
+        const posterKey = mediaStorageService.generateKey('portfolio/posters', slug + '.jpg');
+        await mediaStorageService.upload(videoKey, fs.readFileSync(tmpVideo), { contentType: 'video/mp4' });
+        await mediaStorageService.upload(posterKey, fs.readFileSync(tmpPoster), { contentType: 'image/jpeg' });
+        fs.unlink(tmpVideo, () => {});
+        fs.unlink(tmpPoster, () => {});
+        entry = {
+          category: category.trim(),
+          orientation,
+          type: 'video',
+          video: '/media/' + videoKey,
+          poster: '/media/' + posterKey,
+          alt: title.trim(),
+          placeholderClass: null,
+          title: title.trim(),
+          subtitle: (subtitle || '').trim() || category.trim()
+        };
+      } else {
+        const destVideo = path.join(__dirname, 'videos', 'portfolio', slug + '.mp4');
+        const destPoster = path.join(__dirname, 'videos', 'posters', slug + '.jpg');
+        const { orientation } = processVideo(req.file.path, destVideo, destPoster);
+        entry = {
+          category: category.trim(),
+          orientation,
+          type: 'video',
+          video: 'videos/portfolio/' + slug + '.mp4',
+          poster: 'videos/posters/' + slug + '.jpg',
+          alt: title.trim(),
+          placeholderClass: null,
+          title: title.trim(),
+          subtitle: (subtitle || '').trim() || category.trim()
+        };
+      }
+    } else if (useObjectStorage) {
+      const tmpImage = path.join(TMP_DIR, slug + '-' + Date.now() + '.jpg');
+      const tmpThumb = path.join(TMP_DIR, slug + '-' + Date.now() + '-thumb.jpg');
+      const { orientation, width, height } = await processImage(req.file.path, tmpImage, tmpThumb);
+      const imageKey = mediaStorageService.generateKey('portfolio/images', slug + '.jpg');
+      const thumbKey = mediaStorageService.generateKey('portfolio/thumbnails', slug + '.jpg');
+      await mediaStorageService.upload(imageKey, fs.readFileSync(tmpImage), { contentType: 'image/jpeg' });
+      await mediaStorageService.upload(thumbKey, fs.readFileSync(tmpThumb), { contentType: 'image/jpeg' });
+      fs.unlink(tmpImage, () => {});
+      fs.unlink(tmpThumb, () => {});
       entry = {
         category: category.trim(),
         orientation,
-        type: 'video',
-        video: 'videos/portfolio/' + slug + '.mp4',
-        poster: 'videos/posters/' + slug + '.jpg',
+        width,
+        height,
+        src: '/media/' + imageKey,
+        thumb: '/media/' + thumbKey,
         alt: title.trim(),
         placeholderClass: null,
         title: title.trim(),
@@ -280,6 +331,37 @@ app.get('/digital-album/:code', (req, res) => {
 app.use(['/digital-album.js', '/digital-album.css'], (req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache');
   next();
+});
+
+// ---- Object-storage media proxy ----
+// Serves objects uploaded to R2 (new Portfolio uploads) at a stable local
+// URL instead of a public bucket domain, so private/public access stays a
+// server-side decision rather than a whole-bucket setting. Range passthrough
+// is what makes video seeking work correctly.
+app.get('/media/*', async (req, res) => {
+  const key = req.params[0];
+  if (!key) return res.status(400).end();
+  try {
+    const result = await mediaStorageService.downloadStream(key, { range: req.headers.range });
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    if (result.contentType) res.setHeader('Content-Type', result.contentType);
+    if (result.isPartial) {
+      res.status(206);
+      if (result.contentRange) res.setHeader('Content-Range', result.contentRange);
+      res.setHeader('Accept-Ranges', 'bytes');
+    } else {
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+    if (result.contentLength != null) res.setHeader('Content-Length', result.contentLength);
+    result.body.pipe(res);
+    result.body.on('error', () => res.end());
+  } catch (e) {
+    if (e.name === 'NoSuchKey' || (e.$metadata && e.$metadata.httpStatusCode === 404)) {
+      return res.status(404).end();
+    }
+    console.error('media proxy error:', e.message);
+    res.status(502).end();
+  }
 });
 
 // ---- Static site (must come after /admin routes) ----
