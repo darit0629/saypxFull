@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Copy, Check, Download, ExternalLink, Upload, X } from 'lucide-react';
 import { api, apiUpload, type DigitalAlbum } from '../../lib/api';
-import { WEBSITE_BASE } from '../../lib/config';
+import { websiteAssetUrl } from '../../lib/config';
 import PageManager from '../../components/website/PageManager';
 import CoverPicker from '../../components/website/CoverPicker';
 
@@ -94,7 +94,7 @@ function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: ()
         <p className="text-[10px] text-text-muted uppercase mb-1.5">Background Music</p>
         {album.background_music_path ? (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <audio controls src={`${WEBSITE_BASE}/${album.background_music_path}`} className="h-9 max-w-xs" />
+            <audio controls src={websiteAssetUrl(album.background_music_path)} className="h-9 max-w-xs" />
             <button
               onClick={removeMusic}
               className="flex items-center gap-1.5 self-start rounded-lg border border-danger/40 px-3 py-1.5 text-xs text-danger"
@@ -156,7 +156,7 @@ function AudioAndExtras({ album, onChange }: { album: DigitalAlbum; onChange: ()
         {album.logo_path ? (
           <div className="flex items-center gap-3">
             <img
-              src={`${WEBSITE_BASE}/${album.logo_path}`}
+              src={websiteAssetUrl(album.logo_path)}
               alt="Brand logo"
               className="h-10 max-w-[140px] object-contain rounded border border-border bg-black/20 p-1"
             />

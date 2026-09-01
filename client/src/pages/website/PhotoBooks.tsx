@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, BookImage, Eye } from 'lucide-react';
 import { api, type DigitalAlbum, type AlbumStatus } from '../../lib/api';
 import CreateAlbumDialog from '../../components/website/CreateAlbumDialog';
-import { WEBSITE_BASE } from '../../lib/config';
+import { websiteAssetUrl } from '../../lib/config';
 
 const STATUS_TABS: { key: AlbumStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -142,7 +142,7 @@ export default function PhotoBooks() {
             >
               <div className="aspect-[4/3] bg-black/20 flex items-center justify-center overflow-hidden">
                 {a.cover_thumbnail ? (
-                  <img src={`${WEBSITE_BASE}/${a.cover_thumbnail}`} alt="" className="h-full w-full object-cover" />
+                  <img src={websiteAssetUrl(a.cover_thumbnail)} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <BookImage size={28} className="text-text-muted" />
                 )}

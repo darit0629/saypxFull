@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Upload, Trash2, Copy, RefreshCw, GripVertical } from 'lucide-react';
 import { api, apiUploadWithProgress, type AlbumPage, type PageMode } from '../../lib/api';
-import { WEBSITE_BASE } from '../../lib/config';
+import { websiteAssetUrl } from '../../lib/config';
 
 interface Props {
   albumId: number;
@@ -226,7 +226,7 @@ export default function PageManager({ albumId, pages, pageMode, onChange }: Prop
                 onPointerDown={(e) => startDrag(p.id, e)}
                 className="relative aspect-square bg-black/20 cursor-grab active:cursor-grabbing"
               >
-                <img src={`${WEBSITE_BASE}/${p.thumbnail_path}`} alt="" className="h-full w-full object-cover pointer-events-none" />
+                <img src={websiteAssetUrl(p.thumbnail_path)} alt="" className="h-full w-full object-cover pointer-events-none" />
                 <span className="absolute top-1 left-1 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
                   <GripVertical size={10} />
                   {pageMode === 'FULL_SPREAD' ? `Spread ${i + 1}` : `Page ${i + 1}`}

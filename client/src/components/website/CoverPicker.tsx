@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { X, Upload } from 'lucide-react';
 import { api, apiUpload, type AlbumPage, type AlbumImageRef } from '../../lib/api';
-import { WEBSITE_BASE } from '../../lib/config';
+import { websiteAssetUrl } from '../../lib/config';
 
 interface Props {
   albumId: number;
@@ -43,7 +43,7 @@ export default function CoverPicker({ albumId, which, label, current, pages, onC
       <div className="flex items-center gap-3">
         <div className="h-16 w-16 rounded-lg border border-border bg-black/20 overflow-hidden shrink-0">
           {current ? (
-            <img src={`${WEBSITE_BASE}/${current.thumbnail_path}`} alt="" className="h-full w-full object-cover" />
+            <img src={websiteAssetUrl(current.thumbnail_path)} alt="" className="h-full w-full object-cover" />
           ) : (
             <div className="h-full w-full flex items-center justify-center text-[9px] text-text-muted">None</div>
           )}
@@ -89,7 +89,7 @@ export default function CoverPicker({ albumId, which, label, current, pages, onC
                   onClick={() => selectExistingPage(p)}
                   className="aspect-square rounded-lg border border-border overflow-hidden hover:border-brand"
                 >
-                  <img src={`${WEBSITE_BASE}/${p.thumbnail_path}`} alt="" className="h-full w-full object-cover" />
+                  <img src={websiteAssetUrl(p.thumbnail_path)} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

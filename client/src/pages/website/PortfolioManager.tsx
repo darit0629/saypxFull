@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, PlayCircle, X, CheckSquare, Square } from 'lucide-react';
 import { api, type PortfolioItem, type PortfolioCategories } from '../../lib/api';
 import MediaDialog from '../../components/website/MediaDialog';
-import { WEBSITE_BASE } from '../../lib/config';
+import { websiteAssetUrl } from '../../lib/config';
 
 export default function PortfolioManager() {
   const location = useLocation();
@@ -185,7 +185,7 @@ export default function PortfolioManager() {
               >
                 <div className="relative aspect-square bg-black/20">
                   {thumbSrc && (
-                    <img src={`${WEBSITE_BASE}/${thumbSrc}`} alt={item.alt} className="h-full w-full object-cover" />
+                    <img src={websiteAssetUrl(thumbSrc)} alt={item.alt} className="h-full w-full object-cover" />
                   )}
                   {item.type === 'video' && (
                     <PlayCircle size={28} className="absolute inset-0 m-auto text-white drop-shadow-lg" />
