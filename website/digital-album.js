@@ -211,6 +211,7 @@
     show(els.viewerRoot);
     setLoadingProgress(85);
     initPageFlip();
+    pageTurnAudio.preload();
     setLoadingProgress(95);
     initBackgroundMusic();
     setLoadingProgress(100);
@@ -417,7 +418,7 @@
     else hide(els.openBookBtn);
 
     state.pageFlip.on('flip', function (e) {
-      playPageTurnSound();
+      pageTurnAudio.playLanding();
       updatePageCounter();
       preloadNeighbors(e.data);
       if (e.data > 0) hide(els.openBookBtn);
@@ -467,14 +468,25 @@
         if (Math.sqrt(dx * dx + dy * dy) < CONFIRM_THRESHOLD) return;
         dragging = true;
         state.pageFlip.startUserTouch(bookPos(startX, startY));
+        markInteracted();
+        pageTurnAudio.dragStart();
       }
       state.pageFlip.userMove(pos, true);
+      // "One page width" is approximated as half the visible book area (a
+      // spread in landscape, the whole thing in portrait) - close enough to
+      // give the sound a natural sense of how far into the flip the finger is.
+      var rect = els.bookContainer.getBoundingClientRect();
+      var pageWidth = Math.max(1, rect.width / 2);
+      pageTurnAudio.dragProgress(Math.abs(e.clientX - startX) / pageWidth);
     });
 
     function endGesture(e) {
       activePointers = Math.max(0, activePointers - 1);
       if (e.pointerId !== pointerId) return;
-      if (dragging && state.pageFlip) state.pageFlip.userStop(bookPos(e.clientX, e.clientY));
+      if (dragging) {
+        if (state.pageFlip) state.pageFlip.userStop(bookPos(e.clientX, e.clientY));
+        pageTurnAudio.dragEnd();
+      }
       startX = null;
       pointerId = null;
       dragging = false;
@@ -589,28 +601,130 @@
     }
   })();
 
-  // ---- Sound ----
-  // A pool of a few pre-created Audio elements (not one shared instance) so
-  // rapid consecutive flips can overlap instead of cutting each other off.
-  var soundPool = [];
-  var soundPoolIdx = 0;
-  for (var sp = 0; sp < 4; sp++) {
-    var a = new Audio('/vendor/page-turn.mp3');
-    a.preload = 'auto';
-    a.volume = 0.55;
-    soundPool.push(a);
-  }
-  function playPageTurnSound() {
-    if (!state.soundOn || !state.userInteracted) return;
-    if (state.audioMode === 'music-only' || state.audioMode === 'silent') return;
-    var el = soundPool[soundPoolIdx];
-    soundPoolIdx = (soundPoolIdx + 1) % soundPool.length;
-    try {
-      el.currentTime = 0;
-      var p = el.play();
-      if (p && p.catch) p.catch(function () { /* autoplay-restricted or file missing - fail silently */ });
-    } catch (e) { /* ignore */ }
-  }
+  // ---- Page-turn sound: physically synchronized to the drag gesture ----
+  // Web Audio API gives us a live gain/rate envelope driven by actual finger
+  // position every frame, instead of firing one fixed clip on "page changed".
+  // Only one real sound asset exists in the project (/vendor/page-turn.mp3);
+  // this engine maps the three conceptual layers - subtle movement while
+  // dragging, intensity following progress, and a landing hit on completion
+  // - onto that single file via gain/playbackRate shaping rather than
+  // inventing new audio assets. Dropping in dedicated MOVEMENT_URL/
+  // LANDING_URL files later (e.g. a real paper-rub loop + a separate thump)
+  // is a one-line change - everything else here stays the same.
+  var pageTurnAudio = (function () {
+    var MOVEMENT_URL = '/vendor/page-turn.mp3';
+    var LANDING_URL = '/vendor/page-turn.mp3';
+    var ctx = null;
+    var buffers = {};
+    var loading = {};
+    var dragSource = null, dragGain = null;
+
+    function ensureContext() {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!ctx) ctx = new AC();
+      if (ctx.state === 'suspended') ctx.resume().catch(function () {});
+      return ctx;
+    }
+
+    function loadBuffer(url) {
+      if (buffers[url] || loading[url]) return;
+      var c = ensureContext();
+      if (!c) return;
+      loading[url] = true;
+      fetch(url)
+        .then(function (r) { return r.arrayBuffer(); })
+        .then(function (data) { return c.decodeAudioData(data); })
+        .then(function (decoded) { buffers[url] = decoded; })
+        .catch(function () { /* missing/undecodable - sound stays silent, never blocks the viewer */ });
+    }
+
+    // Decoding doesn't need a user gesture, only playback does - called from
+    // onReady() so the buffer is ready well before the first real flip,
+    // instead of only starting to decode on that first gesture.
+    function preload() {
+      loadBuffer(MOVEMENT_URL);
+      if (LANDING_URL !== MOVEMENT_URL) loadBuffer(LANDING_URL);
+    }
+
+    function enabled() {
+      return state.soundOn && state.userInteracted &&
+        state.audioMode !== 'music-only' && state.audioMode !== 'silent';
+    }
+
+    function stopDragSound(fadeSeconds) {
+      if (!dragSource) return;
+      var c = ctx, g = dragGain, src = dragSource;
+      dragSource = null;
+      dragGain = null;
+      if (c && g) {
+        var now = c.currentTime;
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(g.gain.value, now);
+        g.gain.linearRampToValueAtTime(0, now + fadeSeconds);
+        setTimeout(function () { try { src.stop(); } catch (e) {} }, fadeSeconds * 1000 + 30);
+      } else {
+        try { src.stop(); } catch (e) {}
+      }
+    }
+
+    // A real drag has been confirmed (not a tap) - start a very quiet
+    // continuous paper sound that dragProgress()/dragEnd() shape from here.
+    function dragStart() {
+      if (!enabled()) return;
+      var c = ensureContext();
+      var buf = buffers[MOVEMENT_URL];
+      if (!c || !buf) { preload(); return; } // not decoded yet - skip this one gesture gracefully
+      stopDragSound(0.03);
+      var src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      var gain = c.createGain();
+      gain.gain.value = 0;
+      src.connect(gain).connect(c.destination);
+      src.start();
+      gain.gain.linearRampToValueAtTime(0.12, c.currentTime + 0.06);
+      dragSource = src;
+      dragGain = gain;
+    }
+
+    // pct: 0 (drag just started) -> 1 (about to complete) - follows the finger.
+    function dragProgress(pct) {
+      if (!dragGain || !ctx) return;
+      var p = Math.max(0, Math.min(1, pct));
+      var now = ctx.currentTime;
+      // Quieter/slower near the start, fuller and a touch quicker past the
+      // midpoint - mirrors more of the page being lifted as it turns.
+      dragGain.gain.setTargetAtTime(0.10 + p * 0.22, now, 0.03);
+      if (dragSource) dragSource.playbackRate.setTargetAtTime(0.85 + p * 0.3, now, 0.05);
+    }
+
+    // Always called on release of a real drag, whether the page actually
+    // completes its turn or springs back - the movement sound just stops;
+    // the landing hit (below) only ever fires for a real completed flip.
+    function dragEnd() {
+      stopDragSound(0.15);
+    }
+
+    // Tied to PageFlip's own 'flip' event, which fires only when a page
+    // ACTUALLY turns (never on a spring-back) - the single source of truth
+    // for the "paper landing" sound, whether the flip came from a drag, the
+    // prev/next buttons, or the keyboard.
+    function playLanding() {
+      if (!enabled()) return;
+      var c = ensureContext();
+      var buf = buffers[LANDING_URL];
+      if (!c || !buf) { preload(); return; }
+      var src = c.createBufferSource();
+      var gain = c.createGain();
+      src.buffer = buf;
+      gain.gain.value = 0.5;
+      src.connect(gain).connect(c.destination);
+      src.start();
+    }
+
+    return { preload: preload, dragStart: dragStart, dragProgress: dragProgress, dragEnd: dragEnd, playLanding: playLanding };
+  })();
 
   // ---- Background music: one dedicated looping instance, separate from the
   // one-shot page-turn pool above. Only created when the album actually has

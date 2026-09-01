@@ -478,8 +478,13 @@ window.addEventListener('scroll', () => {
         <span class="portfolio-tile-play"><i class="fas fa-play"></i></span>
       </div>`;
     }
+    // item.thumb only exists on items uploaded after the thumbnail pipeline
+    // was added - older items fall back to the full-size src exactly as
+    // before, so nothing already live changes.
+    const gridSrc = item.thumb || item.src;
+    const dims = (item.width && item.height) ? ` width="${item.width}" height="${item.height}"` : '';
     return `<div class="portfolio-tile" data-index="${globalIndex}">
-      <img src="${item.src}" alt="${escapeHTML(item.alt)}" loading="lazy" draggable="false">
+      <img src="${gridSrc}" alt="${escapeHTML(item.alt)}" loading="lazy" draggable="false"${dims}>
     </div>`;
   }
 

@@ -173,11 +173,17 @@ app.post('/api/admin/portfolio', requireAuth, upload.single('file'), async (req,
       };
     } else {
       const destImage = path.join(__dirname, 'images', 'portfolio', slug + '.jpg');
-      const { orientation } = await processImage(req.file.path, destImage);
+      const thumbDir = path.join(__dirname, 'images', 'portfolio', 'thumbnails');
+      fs.mkdirSync(thumbDir, { recursive: true });
+      const destThumb = path.join(thumbDir, slug + '.jpg');
+      const { orientation, width, height } = await processImage(req.file.path, destImage, destThumb);
       entry = {
         category: category.trim(),
         orientation,
+        width,
+        height,
         src: 'images/portfolio/' + slug + '.jpg',
+        thumb: 'images/portfolio/thumbnails/' + slug + '.jpg',
         alt: title.trim(),
         placeholderClass: null,
         title: title.trim(),

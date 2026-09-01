@@ -30,13 +30,24 @@ function uniqueSlug(baseSlug, existingSlugs) {
   return slug;
 }
 
-async function processImage(srcPath, destPath) {
+// destPath is the existing full/display version (unchanged - old portfolio
+// items already reference this exact path, so its size/quality must stay
+// put). thumbPath is new and additive: a small grid-weight version so the
+// portfolio grid doesn't load the same 2000px file for every tile whether
+// it's shown at 200px or full-screen in the lightbox.
+async function processImage(srcPath, destPath, thumbPath) {
   const meta = await sharp(srcPath).metadata();
   await sharp(srcPath)
     .resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 85 })
     .toFile(destPath);
-  return { orientation: meta.width >= meta.height ? 'landscape' : 'portrait' };
+  if (thumbPath) {
+    await sharp(srcPath)
+      .resize({ width: 480, height: 480, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 78 })
+      .toFile(thumbPath);
+  }
+  return { orientation: meta.width >= meta.height ? 'landscape' : 'portrait', width: meta.width, height: meta.height };
 }
 
 function probeVideo(srcPath) {
