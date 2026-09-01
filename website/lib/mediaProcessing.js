@@ -1,8 +1,13 @@
+const fs = require('fs');
 const { execFileSync } = require('child_process');
 const path = require('path');
 const sharp = require('sharp');
 
-const FFMPEG = path.join(__dirname, '..', '..', 'tools', 'ffmpeg-8.1.2-essentials_build', 'bin', 'ffmpeg.exe');
+// Resolution order: explicit override -> the bundled Windows build used for
+// local dev on this machine -> plain "ffmpeg" resolved from PATH, which is
+// what production (Linux, apt-installed) actually uses.
+const WINDOWS_DEV_FFMPEG = path.join(__dirname, '..', '..', 'tools', 'ffmpeg-8.1.2-essentials_build', 'bin', 'ffmpeg.exe');
+const FFMPEG = process.env.FFMPEG_PATH || (fs.existsSync(WINDOWS_DEV_FFMPEG) ? WINDOWS_DEV_FFMPEG : 'ffmpeg');
 
 function slugify(name) {
   return name
