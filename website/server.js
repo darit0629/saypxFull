@@ -278,6 +278,21 @@ app.put('/api/admin/portfolio/:index', requireAuth, (req, res) => {
   }
 });
 
+// Deletes one item's files regardless of which storage they live in - an
+// R2-backed path ("/media/<key>") needs an actual API delete call, while a
+// legacy local path just needs fs.unlink, exactly as this used to work
+// before R2 existed.
+function deletePortfolioItemFiles(item) {
+  for (const p of [item.src, item.thumb, item.video, item.poster]) {
+    if (!p) continue;
+    if (p.startsWith('/media/')) {
+      mediaStorageService.delete(p.slice('/media/'.length)).catch(() => {});
+    } else {
+      fs.unlink(path.join(__dirname, p), () => {});
+    }
+  }
+}
+
 app.delete('/api/admin/portfolio/:index', requireAuth, (req, res) => {
   try {
     const idx = parseInt(req.params.index, 10);
@@ -285,13 +300,7 @@ app.delete('/api/admin/portfolio/:index', requireAuth, (req, res) => {
     const item = items[idx];
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    const filesToDelete = [];
-    if (item.src) filesToDelete.push(path.join(__dirname, item.src));
-    if (item.video) filesToDelete.push(path.join(__dirname, item.video));
-    if (item.poster) filesToDelete.push(path.join(__dirname, item.poster));
-    for (const f of filesToDelete) {
-      fs.unlink(f, () => {});
-    }
+    deletePortfolioItemFiles(item);
 
     items.splice(idx, 1);
     writeItems(items);
